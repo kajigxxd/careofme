@@ -137,7 +137,7 @@ export function registerHandlers(bot: Bot) {
 
     if (!user.onboardingDone) {
       await ctx.reply(
-        `Привет${user.firstName ? `, ${user.firstName}` : ""} \n\n` +
+        `Привет${user.firstName ? `, ${user.firstName}` : ""}\n\n` +
           `Я *Бережно* — твой карманный спутник для эмоциональной безопасности.\n\n` +
           `За 2–3 минуты в день:\n` +
           `• чек-ин настроения\n` +
@@ -158,10 +158,10 @@ export function registerHandlers(bot: Bot) {
 
     const appKb = openAppKeyboard();
     await ctx.reply(
-      `Снова здесь — и это уже забота о себе \n\n` +
+      `Снова здесь — и это уже забота о себе.\n\n` +
         `Серия: *${pluralDays(user.streak)}* чек-инов подряд.\n` +
         (webappUrl()
-          ? `Открой *приложение* кнопкой ниже или меню  → «Открыть Бережно».\n`
+          ? `Открой *приложение* кнопкой ниже или меню → «Открыть Бережно».\n`
           : "") +
         `Либо выбери действие в меню.`,
       { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }
@@ -807,7 +807,7 @@ export function registerHandlers(bot: Bot) {
 
     // Default: gentle nudge
     await ctx.reply(
-      "Я лучше всего работаю через меню \n" +
+      "Я лучше всего работаю через меню.\n" +
         "Или напиши /checkin · /coach · /stats · /help",
       { reply_markup: mainMenuKeyboard() }
     );
@@ -916,7 +916,7 @@ async function finishCheckin(
       `Стресс ${p.stress}/5 ${bar(p.stress)}\n` +
       (p.sleep ? `Сон ${p.sleep}/5 ${bar(p.sleep)}\n` : "") +
       (note ? `\n«${note.slice(0, 120)}»\n` : "") +
-      `\n Серия: ${pluralDays(user.streak)}\n\n${tip}`,
+      `\nСерия: ${pluralDays(user.streak)}\n\n${tip}`,
     {
       reply_markup: afterCheckinKeyboard(),
     }
