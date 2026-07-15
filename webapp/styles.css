@@ -1190,6 +1190,74 @@ h2 {
   }
 }
 
+/* Achievements */
+.ach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ach-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 4px 14px var(--calm-shadow);
+}
+
+.ach-item.locked {
+  opacity: 0.55;
+  filter: grayscale(0.35);
+}
+
+.ach-item .ach-emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ach-item .ach-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.ach-item .ach-desc {
+  font-size: 0.88rem;
+  color: var(--hint);
+  line-height: 1.4;
+}
+
+.ach-item .ach-meta {
+  font-size: 0.75rem;
+  color: var(--link);
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.ach-toast {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--safe-t) + 56px);
+  transform: translateX(-50%);
+  z-index: 60;
+  background: color-mix(in srgb, var(--calm-btn-deep) 92%, #1a2420);
+  color: #f7fffb;
+  padding: 12px 18px;
+  border-radius: 16px;
+  font-weight: 650;
+  font-size: 0.9rem;
+  box-shadow: 0 12px 32px var(--calm-shadow);
+  max-width: 90vw;
+  text-align: center;
+}
+
+.ach-toast.hidden {
+  display: none;
+}
+
 .risk-chip {
   display: inline-block;
   font-size: 0.75rem;

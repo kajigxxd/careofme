@@ -13,6 +13,18 @@ import {
   recommendPractice,
 } from "../data/practices";
 import {
+  THERAPY_MODULES,
+  THERAPY_DISCLAIMER,
+  getTherapy,
+  therapyIds,
+} from "../data/therapy";
+import {
+  ACHIEVEMENTS,
+  evaluateNewAchievements,
+  getAchievement,
+  computePracticeStats,
+} from "../data/achievements";
+import {
   FOCUS_LABELS,
   PLANS,
   pickJournalPrompt,
@@ -548,7 +560,113 @@ export function createApiRouter(): Router {
       return res.status(403).json({ error: "premium_required" });
     }
     store.addPractice(profile.userId, p.id, p.title, p.durationMin * 60);
-    res.json({ ok: true });
+    const user = store.getUser(profile.userId)!;
+    const newly = evaluateNewAchievements(
+      user.practices,
+      store.getAchievementIds(profile.userId),
+      therapyIds()
+    );
+    const unlockedIds = store.unlockAchievements(profile.userId, newly);
+    const unlocked = unlockedIds
+      .map((id) => getAchievement(id))
+      .filter(Boolean);
+    res.json({
+      ok: true,
+      newAchievements: unlocked,
+      practiceCount: user.practices.length,
+    });
+  });
+
+  router.get("/therapy", (req, res) => {
+    const profile = (req as any).profile;
+    const premium = store.isPremium(profile);
+    res.json({
+      disclaimer: THERAPY_DISCLAIMER,
+      modules: THERAPY_MODULES.map((t) => ({
+        id: t.id,
+        title: t.title,
+        emoji: t.emoji,
+        durationMin: t.durationMin,
+        focus: t.focus,
+        free: t.free,
+        locked: !t.free && !premium,
+        intro: t.intro,
+      })),
+      premium,
+    });
+  });
+
+  router.get("/therapy/:id", (req, res) => {
+    const profile = (req as any).profile;
+    const premium = store.isPremium(profile);
+    const t = getTherapy(req.params.id);
+    if (!t) return res.status(404).json({ error: "not_found" });
+    if (!t.free && !premium) {
+      return res.status(403).json({
+        error: "premium_required",
+        module: { id: t.id, title: t.title },
+      });
+    }
+    res.json({ module: t });
+  });
+
+  router.post("/therapy/:id/done", (req, res) => {
+    const profile = (req as any).profile;
+    const premium = store.isPremium(profile);
+    const t = getTherapy(req.params.id);
+    if (!t) return res.status(404).json({ error: "not_found" });
+    if (!t.free && !premium) {
+      return res.status(403).json({ error: "premium_required" });
+    }
+    // Log as practice so achievements and stats count
+    store.addPractice(
+      profile.userId,
+      t.id,
+      `${t.emoji} ${t.title}`,
+      t.durationMin * 60
+    );
+    const user = store.getUser(profile.userId)!;
+    const newly = evaluateNewAchievements(
+      user.practices,
+      store.getAchievementIds(profile.userId),
+      therapyIds()
+    );
+    const unlockedIds = store.unlockAchievements(profile.userId, newly);
+    const unlocked = unlockedIds
+      .map((id) => getAchievement(id))
+      .filter(Boolean);
+    res.json({
+      ok: true,
+      newAchievements: unlocked,
+      practiceCount: user.practices.length,
+    });
+  });
+
+  router.get("/achievements", (req, res) => {
+    const profile = (req as any).profile;
+    const user = store.getUser(profile.userId)!;
+    const owned = user.achievements || [];
+    const ownedSet = new Set(owned.map((a) => a.id));
+    const stats = computePracticeStats(user.practices, new Set(therapyIds()));
+    res.json({
+      stats: {
+        totalPractices: stats.total,
+        uniquePractices: stats.unique,
+        dayStreak: stats.dayStreak,
+        daysActive: stats.daysActive,
+        therapyCount: stats.therapyCount,
+        unlockedCount: owned.length,
+        totalAchievements: ACHIEVEMENTS.length,
+      },
+      achievements: ACHIEVEMENTS.map((a) => {
+        const hit = owned.find((x) => x.id === a.id);
+        return {
+          ...a,
+          unlocked: ownedSet.has(a.id),
+          unlockedAt: hit?.at || null,
+        };
+      }),
+    });
   });
 
   router.post("/stress", async (req, res) => {

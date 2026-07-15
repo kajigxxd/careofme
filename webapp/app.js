@@ -338,6 +338,8 @@ function go(screen) {
 
   if (screen === "checkin") resetCheckinUI();
   if (screen === "practices") loadPractices();
+  if (screen === "therapy") loadTherapy();
+  if (screen === "achievements") loadAchievements();
   if (screen === "stress") renderStressUI();
   if (screen === "journal") openJournalScreen();
   if (screen === "coach") renderCoachMeta();
@@ -531,6 +533,8 @@ async function loadMe() {
     }
     updatePayBanner();
     updateFeelingsAnalysisUi();
+    // Soft refresh achievement counter on home
+    loadAchievements().catch(() => {});
   } catch (e) {
     console.error("loadMe", e);
     if (e.status === 401) {
@@ -837,15 +841,162 @@ async function openPractice(id, locked) {
   }
 }
 
+function celebrateAchievements(list) {
+  if (!list?.length) return;
+  const first = list[0];
+  const more = list.length > 1 ? ` (+${list.length - 1})` : "";
+  const msg = `${first.emoji || "🏆"} ${first.title || "Ачивка!"}${more}`;
+  toast(msg);
+  let el = document.getElementById("achToast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "achToast";
+    el.className = "ach-toast hidden";
+    document.body.appendChild(el);
+  }
+  el.textContent = `Ачивка: ${first.emoji || "🏆"} ${first.title || ""}${more}`;
+  el.classList.remove("hidden");
+  clearTimeout(celebrateAchievements._t);
+  celebrateAchievements._t = setTimeout(() => el.classList.add("hidden"), 3200);
+  if (tg?.HapticFeedback) {
+    try {
+      tg.HapticFeedback.notificationOccurred("success");
+    } catch (_) {}
+  }
+}
+
 async function onPracticeDone() {
   if (!state.currentPracticeId) return;
   try {
-    await api(`/practices/${state.currentPracticeId}/done`, { method: "POST", body: {} });
+    const res = await api(`/practices/${state.currentPracticeId}/done`, {
+      method: "POST",
+      body: {},
+    });
     toast("Засчитано 🌿");
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    if (res.newAchievements?.length) celebrateAchievements(res.newAchievements);
     go("practices");
   } catch {
     toast("Ошибка");
+  }
+}
+
+/* —— Therapy —— */
+async function loadTherapy() {
+  const list = $("#therapyList");
+  const disc = $("#therapyDisclaimer");
+  if (list) list.innerHTML = `<p class="muted">Загрузка…</p>`;
+  try {
+    const data = await api("/therapy");
+    if (disc) disc.textContent = data.disclaimer || "";
+    if (!list) return;
+    list.innerHTML = "";
+    for (const t of data.modules || []) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "practice-item";
+      b.innerHTML = `
+        <div class="emoji">${t.emoji}</div>
+        <div class="meta">
+          <div class="t">${t.title}</div>
+          <div class="s">${t.durationMin} мин · самопомощь</div>
+        </div>
+        <div class="lock">${t.locked ? "🔒" : "›"}</div>`;
+      b.onclick = () => openTherapy(t.id, t.locked);
+      list.appendChild(b);
+    }
+  } catch (e) {
+    if (list) list.innerHTML = `<p class="muted">${apiErrorMessage(e)}</p>`;
+  }
+}
+
+async function openTherapy(id, locked) {
+  if (locked) {
+    toast("Модуль доступен в подписке");
+    go("premium");
+    return;
+  }
+  try {
+    const { module: t } = await api(`/therapy/${id}`);
+    state.currentTherapyId = t.id;
+    if ($("#tTitle")) $("#tTitle").textContent = `${t.emoji} ${t.title}`;
+    if ($("#tMeta")) $("#tMeta").textContent = `~${t.durationMin} мин`;
+    if ($("#tDisclaimer")) $("#tDisclaimer").textContent = t.disclaimer || "";
+    if ($("#tIntro")) $("#tIntro").textContent = t.intro || "";
+    if ($("#tOutro")) $("#tOutro").textContent = t.outro || "";
+    if ($("#tSteps")) {
+      $("#tSteps").innerHTML = (t.steps || []).map((s) => `<li>${s}</li>`).join("");
+    }
+    go("therapy-detail");
+  } catch (e) {
+    if (e.status === 403) {
+      toast("Нужна подписка");
+      go("premium");
+    } else toast("Не найдено");
+  }
+}
+
+async function onTherapyDone() {
+  if (!state.currentTherapyId) return;
+  try {
+    const res = await api(`/therapy/${state.currentTherapyId}/done`, {
+      method: "POST",
+      body: {},
+    });
+    toast("Модуль завершён 🪷");
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    if (res.newAchievements?.length) celebrateAchievements(res.newAchievements);
+    go("therapy");
+  } catch {
+    toast("Ошибка");
+  }
+}
+
+/* —— Achievements —— */
+async function loadAchievements() {
+  const list = $("#achList");
+  if (list) list.innerHTML = `<p class="muted">Загрузка…</p>`;
+  try {
+    const data = await api("/achievements");
+    const s = data.stats || {};
+    if ($("#achChip")) {
+      $("#achChip").textContent = `${s.unlockedCount || 0}/${s.totalAchievements || 0}`;
+    }
+    if ($("#achStats")) {
+      $("#achStats").textContent =
+        `Практик: ${s.totalPractices || 0} · разных: ${s.uniquePractices || 0} · ` +
+        `серия дней: ${s.dayStreak || 0} · терапия: ${s.therapyCount || 0}`;
+    }
+    if ($("#homeAchCount")) {
+      $("#homeAchCount").textContent =
+        s.unlockedCount != null
+          ? `${s.unlockedCount}/${s.totalAchievements || 0}`
+          : "за практики";
+    }
+    if (!list) return;
+    list.innerHTML = (data.achievements || [])
+      .map((a) => {
+        const unlocked = a.unlocked;
+        const when = a.unlockedAt
+          ? new Date(a.unlockedAt).toLocaleDateString("ru-RU", {
+              day: "numeric",
+              month: "short",
+            })
+          : "";
+        return `<div class="ach-item ${unlocked ? "" : "locked"}">
+          <div class="ach-emoji">${a.emoji || "🏆"}</div>
+          <div>
+            <div class="ach-title">${a.title || ""}</div>
+            <div class="ach-desc">${a.description || ""}</div>
+            <div class="ach-meta">${
+              unlocked ? `Открыто · ${when}` : a.hint || "Ещё не открыто"
+            }</div>
+          </div>
+        </div>`;
+      })
+      .join("");
+  } catch (e) {
+    if (list) list.innerHTML = `<p class="muted">${apiErrorMessage(e)}</p>`;
   }
 }
 
@@ -1972,6 +2123,7 @@ function wireUi() {
   on("checkinNext", "click", () => submitCheckin());
   on("recommendPractice", "click", () => onRecommendPractice());
   on("practiceDone", "click", () => onPracticeDone());
+  on("therapyDone", "click", () => onTherapyDone());
   on("stressSave", "click", () => onStressSave());
   on("journalRefresh", "click", (ev) => {
     ev.preventDefault();

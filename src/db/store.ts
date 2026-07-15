@@ -97,6 +97,8 @@ export interface UserProfile {
   practices: PracticeLog[];
   stress: StressPoint[];
   coachMessages: { role: "user" | "assistant"; content: string; at: string }[];
+  /** Unlocked achievement ids with timestamps */
+  achievements?: { id: string; at: string }[];
   freeCoachToday: number;
   freeCoachDate?: string;
   /** Last crypto invoice ids for this user */
@@ -232,6 +234,7 @@ export class Store {
         practices: [],
         stress: [],
         coachMessages: [],
+        achievements: [],
         freeCoachToday: 0,
         pendingInvoices: [],
         paymentHistory: [],
@@ -542,6 +545,36 @@ export class Store {
     if (user.practices.length > 300) user.practices = user.practices.slice(0, 300);
     this.persist();
     return user;
+  }
+
+  getAchievementIds(userId: number): string[] {
+    const user = this.getUser(userId);
+    return (user?.achievements || []).map((a) => a.id);
+  }
+
+  /**
+   * Unlock achievement ids that are not yet owned. Returns newly unlocked ids.
+   */
+  unlockAchievements(userId: number, ids: string[]): string[] {
+    const user = this.getUser(userId);
+    if (!user || !ids.length) return [];
+    user.achievements = user.achievements || [];
+    const have = new Set(user.achievements.map((a) => a.id));
+    const fresh: string[] = [];
+    const now = new Date().toISOString();
+    for (const id of ids) {
+      if (have.has(id)) continue;
+      user.achievements.unshift({ id, at: now });
+      have.add(id);
+      fresh.push(id);
+    }
+    if (fresh.length) {
+      if (user.achievements.length > 100) {
+        user.achievements = user.achievements.slice(0, 100);
+      }
+      this.persist();
+    }
+    return fresh;
   }
 
   addStress(

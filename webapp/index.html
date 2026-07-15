@@ -17,7 +17,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715q" />
+    <link rel="stylesheet" href="./styles.css?v=20260715r" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -87,6 +87,11 @@
               <span class="a-title">Практики</span>
               <span class="a-sub">дыхание · CBT</span>
             </button>
+            <button class="card action" data-go="therapy">
+              <span class="a-emoji">🪷</span>
+              <span class="a-title">Терапия</span>
+              <span class="a-sub">модули самопомощи</span>
+            </button>
             <button class="card action" data-go="stress">
               <span class="a-emoji">📊</span>
               <span class="a-title">Стресс</span>
@@ -101,6 +106,11 @@
               <span class="a-emoji">💬</span>
               <span class="a-title">AI-коуч</span>
               <span class="a-sub">на русском</span>
+            </button>
+            <button class="card action" data-go="achievements">
+              <span class="a-emoji">🏆</span>
+              <span class="a-title">Ачивки</span>
+              <span class="a-sub" id="homeAchCount">за практики</span>
             </button>
           </div>
 
@@ -230,14 +240,46 @@
 
         <section class="screen" data-screen="practice-detail">
           <div class="card">
-            <button class="back" data-go="practices">← Назад</button>
+            <button class="back" data-go="practices" type="button">← Назад</button>
             <h1 id="pTitle"></h1>
             <p class="muted" id="pMeta"></p>
             <p id="pIntro"></p>
             <ol id="pSteps" class="steps"></ol>
             <p class="muted" id="pOutro"></p>
-            <button class="btn primary block" id="practiceDone">✅ Сделал(а)</button>
+            <button class="btn primary block" id="practiceDone" type="button">✅ Сделал(а)</button>
           </div>
+        </section>
+
+        <!-- THERAPY -->
+        <section class="screen" data-screen="therapy">
+          <div class="row-between">
+            <h1>Терапия</h1>
+          </div>
+          <p class="muted" id="therapyDisclaimer" style="margin-bottom:12px"></p>
+          <div id="therapyList" class="list"></div>
+        </section>
+
+        <section class="screen" data-screen="therapy-detail">
+          <div class="card">
+            <button class="back" data-go="therapy" type="button">← Назад</button>
+            <h1 id="tTitle"></h1>
+            <p class="muted" id="tMeta"></p>
+            <p class="fineprint" id="tDisclaimer"></p>
+            <p id="tIntro"></p>
+            <ol id="tSteps" class="steps"></ol>
+            <p class="muted" id="tOutro"></p>
+            <button class="btn primary block" id="therapyDone" type="button">✅ Завершить модуль</button>
+          </div>
+        </section>
+
+        <!-- ACHIEVEMENTS -->
+        <section class="screen" data-screen="achievements">
+          <div class="row-between">
+            <h1>Ачивки</h1>
+            <span class="chip" id="achChip">0/0</span>
+          </div>
+          <p class="muted" id="achStats" style="margin-bottom:12px"></p>
+          <div id="achList" class="ach-list"></div>
         </section>
 
         <!-- STRESS -->
@@ -457,6 +499,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715q" type="module"></script>
+    <script src="./app.js?v=20260715r" type="module"></script>
   </body>
 </html>
