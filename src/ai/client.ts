@@ -106,7 +106,7 @@ function buildUserContext(user: UserProfile): string {
   if (journals.length) {
     parts.push(
       "Дневник (фрагменты): " +
-        journals.map((j) => `«${(j.text || "").slice(0, 120)}»`).join(" | ")
+        journals.map((j) => `«${(j.text || "").slice(0, 120)}»`).join("| ")
     );
   }
 
@@ -120,7 +120,7 @@ function buildUserContext(user: UserProfile): string {
             (m) =>
               `${m.role === "user" ? "он/она" : "коуч"}: ${m.content.slice(0, 80)}`
           )
-          .join(" · ")
+          .join("· ")
     );
   }
 
@@ -183,7 +183,7 @@ export async function coachReply(
     buildUserContext(user);
 
   const practiceHint =
-    `\n\nПрактику «${suggested.emoji} ${suggested.title}» (~${suggested.durationMin} мин) предлагай ТОЛЬКО если она реально подходит к тексту человека. ` +
+    `\n\nПрактику «${suggested.title}» (~${suggested.durationMin} мин) предлагай ТОЛЬКО если она реально подходит к тексту человека. ` +
     `Не в каждом ответе. Не как скрипт «открой практику X». Можно просто словами, без id. ` +
     `Если человек в остром истощении — лучше ещё меньший шаг, чем полноценная практика.`;
 
@@ -386,7 +386,7 @@ export async function reflectSelectedFeelings(
             (prevLabels.length
               ? `Убрал(а) из фокуса: ${prevLabels.join(", ")}\n`
               : "") +
-            `Практика-кандидат: ${practice.emoji} ${practice.title} (~${practice.durationMin} мин)`,
+            `Практика-кандидат: ${practice.title} (~${practice.durationMin} мин)`,
         },
       ],
     });
@@ -396,7 +396,7 @@ export async function reflectSelectedFeelings(
     return {
       text: text.replace(/\*\*/g, "*"),
       practiceId: practice.id,
-      practiceTitle: `${practice.emoji} ${practice.title}`,
+      practiceTitle: `${practice.title}`,
       usedFallback: false,
       labels,
     };
@@ -419,7 +419,7 @@ function fallbackFeelingsReflect(
 
   const comboHint =
     labels.length >= 2
-      ? `Когда рядом ${labels.slice(0, 3).join(" и ")}, часто это не «одна эмоция», а связка: одно чувство питает другое.`
+      ? `Когда рядом ${labels.slice(0, 3).join("и ")}, часто это не «одна эмоция», а связка: одно чувство питает другое.`
       : `Ты отметил(а): ${list}. Это уже ориентир — можно не гадать «что со мной не так».`;
 
   const changeHint = added.length
@@ -439,14 +439,14 @@ function fallbackFeelingsReflect(
     `${comboHint}\n\n` +
     `Как с этим быть мягко (выбери одно, без обязательства):\n` +
     `• Назови чувство вслух или в заметке одной фразой — отделить «я = плохо» от «мне сейчас тяжело».\n` +
-    `• Телу: 5 длинных выдохов или короткая практика «${practice.emoji} ${practice.title}» (~${practice.durationMin} мин).\n` +
+    `• Телу: 5 длинных выдохов или короткая практика «${practice.title}» (~${practice.durationMin} мин).\n` +
     `• Если сил мало — уменьшить день на 10% и не доказывать себе выносливость.\n\n` +
     `Это не диагноз. Можно вернуться к коучу и разобрать одну нить подробнее.`;
 
   return {
     text,
     practiceId: practice.id,
-    practiceTitle: `${practice.emoji} ${practice.title}`,
+    practiceTitle: `${practice.title}`,
     usedFallback: true,
     labels,
   };
@@ -464,7 +464,7 @@ function fallbackCoach(
   const focus = user.focusAreas
     .slice(0, 2)
     .map((f) => FOCUS_LABELS[f] || f)
-    .join(" и ");
+    .join("и ");
 
   // Pull a concrete fragment from their message so it doesn't feel generic
   const snippet = message.replace(/\s+/g, " ").trim().slice(0, 90);
@@ -484,7 +484,7 @@ function fallbackCoach(
     : "";
 
   const softClose = p
-    ? `\n\nЕсли силы есть — можно ${p.emoji} «${p.title}» (~${p.durationMin} мин). Если нет — достаточно воды, воздуха или просто ничего не делать 10 минут. Оба варианта нормальны.`
+    ? `\n\nЕсли силы есть — можно «${p.title}» (~${p.durationMin} мин). Если нет — достаточно воды, воздуха или просто ничего не делать 10 минут. Оба варианта нормальны.`
     : `\n\nСейчас можно не «чинить жизнь». Достаточно одного бережного жеста к себе — или паузы без задачи.`;
 
   if (/не сплю|бессон|не могу уснуть|кошмар|отключиться/.test(lower)) {
@@ -565,7 +565,7 @@ export async function weeklyInsight(user: UserProfile): Promise<string> {
     const avgStress =
       checkins.reduce((s, c) => s + c.stress, 0) / checkins.length;
     return (
-      `📊 *Краткая сводка*\n\n` +
+      ` *Краткая сводка*\n\n` +
       `Среднее настроение: ${avgMood.toFixed(1)}/5\n` +
       `Средний стресс: ${avgStress.toFixed(1)}/5\n` +
       `Чек-инов: ${checkins.length}\n` +
@@ -681,7 +681,7 @@ function fallbackFeelingsAnalysis(user: UserProfile): FeelingsAnalysis {
     .map((f) => FOCUS_LABELS[f] || f);
 
   const lines = [
-    "🪞 Полный разбор чувств (краткий режим)",
+    "Полный разбор чувств (краткий режим)",
     "",
     `Что ты отметил(а) как важное: ${dominant.join(", ") || "общее состояние"}.`,
     avgMood != null
@@ -873,7 +873,7 @@ export async function autoSupportOnBadResult(
   const practiceLines = picks
     .map(
       (p) =>
-        `• ${p.emoji} ${p.title} (~${p.durationMin} мин) — ${p.reason}`
+        `• ${p.title} (~${p.durationMin} мин) — ${p.reason}`
     )
     .join("\n");
 
@@ -938,7 +938,7 @@ export async function autoSupportOnBadResult(
     return {
       text: text.replace(/\*\*/g, "*"),
       practiceId: practice.id,
-      practiceTitle: `${practice.emoji} ${practice.title}`,
+      practiceTitle: `${practice.title}`,
       practices: picks,
       usedFallback: false,
       trigger,
@@ -1016,10 +1016,10 @@ function fallbackBadResultHelp(
       ? picks
           .map(
             (p, i) =>
-              `${i + 1}) ${p.emoji} *${p.title}* (~${p.durationMin} мин) — ${p.reason}`
+              `${i + 1}) *${p.title}* (~${p.durationMin} мин) — ${p.reason}`
           )
           .join("\n")
-      : `1) ${practice.emoji} *${practice.title}* (~${practice.durationMin} мин)`;
+      : `1) *${practice.title}* (~${practice.durationMin} мин)`;
 
   const text =
     `${name}сейчас показатели низкие (${scoreLine}` +
@@ -1036,7 +1036,7 @@ function fallbackBadResultHelp(
   return {
     text,
     practiceId: practice.id,
-    practiceTitle: `${practice.emoji} ${practice.title}`,
+    practiceTitle: `${practice.title}`,
     practices: picks,
     usedFallback: true,
     trigger,

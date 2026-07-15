@@ -140,9 +140,9 @@ export function createHttpServer(): Express {
     candidates[0]!;
 
   if (!fs.existsSync(path.join(webRoot, "index.html"))) {
-    console.warn("⚠ webapp/index.html not found at", webRoot);
+    console.warn("webapp/index.html not found at", webRoot);
   } else {
-    console.log("📂 Mini App static:", webRoot);
+    console.log("Mini App static:", webRoot);
   }
 
   app.use(
@@ -212,7 +212,7 @@ export function createHttpServer(): Express {
 export function listenHttp(app: Express, port: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const server = app.listen(port, "0.0.0.0", () => {
-      console.log(`🌐 HTTP :${port}`);
+      console.log(` HTTP :${port}`);
       resolve();
     });
     server.maxHeadersCount = 50;

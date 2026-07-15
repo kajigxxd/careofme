@@ -219,7 +219,7 @@ function pickGroundingPractice() {
     getPractice("body_scan_short");
   return {
     id: p?.id || "54321",
-    title: p ? `${p.emoji} ${p.title}` : "🌊 Заземление 5-4-3-2-1",
+    title: p ? `${p.title}` : "Заземление 5-4-3-2-1",
     durationMin: p?.durationMin || 3,
   };
 }
@@ -250,8 +250,8 @@ export function buildCrisisHelpText(
     "",
     "Сейчас важнее живой человек, чем любой бот.",
     "",
-    `📞 Телефон доверия: *${res.hotline}* — бесплатно, 24/7, РФ`,
-    `🚨 Если опасность прямо сейчас: *${res.emergency}*`,
+    ` Телефон доверия: *${res.hotline}* — бесплатно, 24/7, РФ`,
+    ` Если опасность прямо сейчас: *${res.emergency}*`,
     "",
     "Ты не обязан(а) справляться в одиночку. Позвонить — это сила, не слабость.",
     "",

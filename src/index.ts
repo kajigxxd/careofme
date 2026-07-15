@@ -22,7 +22,7 @@ const token = process.env.BOT_TOKEN;
 
 if (!token) {
   console.error(
-    "❌ Не задан BOT_TOKEN.\n" +
+    "Не задан BOT_TOKEN.\n" +
       "Задайте secret BOT_TOKEN (Render / Railway / .env)."
   );
   process.exit(1);
@@ -60,7 +60,7 @@ async function configureProfile(webappUrl?: string) {
           web_app: { url: webappUrl },
         },
       });
-      console.log(`📱 Menu Button → Mini App: ${webappUrl}`);
+      console.log(` Menu Button → Mini App: ${webappUrl}`);
     } else {
       await bot.api.setChatMenuButton({
         menu_button: { type: "commands" },
@@ -121,7 +121,7 @@ function mountCryptoPayWebhook(
               const u = store.getUser(result.userId);
               await bot.api.sendMessage(
                 u?.chatId || result.userId,
-                `✅ Оплата получена!\n\nТариф «${
+                ` Оплата получена!\n\nТариф «${
                   result.plan === "plus" ? "Плюс" : "Забота"
                 }» активен на ${result.days || 30} дн.\nОткрой /start или приложение careofme.`
               );
@@ -137,7 +137,7 @@ function mountCryptoPayWebhook(
       }
     }
   );
-  console.log("💎 Crypto Pay webhook: /payments/cryptopay/webhook");
+  console.log("Crypto Pay webhook: /payments/cryptopay/webhook");
 }
 
 async function main() {
@@ -154,7 +154,7 @@ async function main() {
     const secret = webhookSecretPath();
     const path = `/telegram/webhook/${secret}`;
     app.post(path, webhookCallback(bot, "express"));
-    console.log(`🪝 Telegram webhook: ${path}`);
+    console.log(` Telegram webhook: ${path}`);
 
     await listenHttp(app, port);
 
@@ -162,7 +162,7 @@ async function main() {
       drop_pending_updates: true,
       allowed_updates: ["message", "callback_query", "my_chat_member"],
     });
-    console.log(`🪝 setWebhook → ${webappUrl}${path}`);
+    console.log(` setWebhook → ${webappUrl}${path}`);
   } else {
     try {
       await bot.api.deleteWebhook({ drop_pending_updates: false });
@@ -176,7 +176,7 @@ async function main() {
 
   const me = await bot.api.getMe();
   process.env.BOT_USERNAME = me.username;
-  console.log(`🌿 careofme: @${me.username}`);
+  console.log(` careofme: @${me.username}`);
   console.log(
     isAiConfigured()
       ? `AI-коуч: SpaceXAI (${process.env.XAI_MODEL || "grok-4.5"})`
@@ -184,7 +184,7 @@ async function main() {
   );
   console.log(
     isCryptoPayConfigured()
-      ? "Оплата: Crypto Pay (@CryptoBot) ✓"
+      ? "Оплата: Crypto Pay (@CryptoBot) "
       : "Оплата: CRYPTO_PAY_TOKEN не задан"
   );
   if (webappUrl) {

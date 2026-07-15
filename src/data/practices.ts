@@ -20,7 +20,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "box_breath",
     title: "Квадратное дыхание",
-    emoji: "🫁",
+    emoji: "",
     kind: "breathing",
     durationMin: 3,
     focus: ["anxiety", "fear", "overwhelm", "anger", "general", "burnout"],
@@ -41,7 +41,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "478_breath",
     title: "Дыхание 4–7–8",
-    emoji: "🌙",
+    emoji: "",
     kind: "breathing",
     durationMin: 4,
     focus: ["insomnia", "anxiety", "fear", "overwhelm", "general"],
@@ -62,7 +62,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "54321",
     title: "Заземление 5–4–3–2–1",
-    emoji: "🌳",
+    emoji: "",
     kind: "grounding",
     durationMin: 3,
     focus: ["anxiety", "fear", "overwhelm", "emptiness", "anger", "general"],
@@ -83,7 +83,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "thought_catch",
     title: "Поймать мысль (CBT)",
-    emoji: "🧠",
+    emoji: "",
     kind: "cbt",
     durationMin: 5,
     focus: [
@@ -112,7 +112,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "tiny_win",
     title: "Маленькая победа дня",
-    emoji: "✨",
+    emoji: "",
     kind: "cbt",
     durationMin: 2,
     focus: ["burnout", "apathy", "sadness", "self_doubt", "emptiness", "general"],
@@ -132,7 +132,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "body_scan_short",
     title: "Короткий скан тела",
-    emoji: "🧘",
+    emoji: "",
     kind: "body",
     durationMin: 4,
     focus: [
@@ -162,7 +162,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "sleep_wind_down",
     title: "Вечерний сброс",
-    emoji: "🛏",
+    emoji: "",
     kind: "sleep",
     durationMin: 5,
     focus: ["insomnia", "anxiety", "burnout", "fear", "overwhelm"],
@@ -182,7 +182,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "worry_window",
     title: "Окно тревоги",
-    emoji: "🪟",
+    emoji: "",
     kind: "cbt",
     durationMin: 6,
     focus: ["anxiety", "insomnia", "fear", "overwhelm", "guilt"],
@@ -203,7 +203,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "boundaries_one",
     title: "Одна граница",
-    emoji: "🛡",
+    emoji: "",
     kind: "cbt",
     durationMin: 4,
     focus: ["burnout", "relationships", "guilt", "overwhelm", "anger", "general"],
@@ -223,7 +223,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "gratitude_real",
     title: "Реальная благодарность",
-    emoji: "🌿",
+    emoji: "",
     kind: "journal",
     durationMin: 3,
     focus: ["general", "burnout", "sadness", "loneliness", "apathy", "emptiness"],
@@ -242,7 +242,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "energy_sip",
     title: "3 минуты на топливо",
-    emoji: "🔋",
+    emoji: "",
     kind: "body",
     durationMin: 3,
     focus: ["burnout", "apathy", "sadness", "emptiness", "overwhelm", "general"],
@@ -262,7 +262,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "name_the_feeling",
     title: "Назвать чувство",
-    emoji: "🗣",
+    emoji: "",
     kind: "journal",
     durationMin: 2,
     focus: [
@@ -290,7 +290,7 @@ export const PRACTICES: Practice[] = [
   {
     id: "shoulders_drop",
     title: "Плечи вниз + выдох",
-    emoji: "⬇️",
+    emoji: "",
     kind: "body",
     durationMin: 2,
     focus: ["anxiety", "overwhelm", "anger", "fear", "burnout", "general"],

@@ -137,7 +137,7 @@ export function registerHandlers(bot: Bot) {
 
     if (!user.onboardingDone) {
       await ctx.reply(
-        `Привет${user.firstName ? `, ${user.firstName}` : ""} 🌿\n\n` +
+        `Привет${user.firstName ? `, ${user.firstName}` : ""} \n\n` +
           `Я *Бережно* — твой карманный спутник для эмоциональной безопасности.\n\n` +
           `За 2–3 минуты в день:\n` +
           `• чек-ин настроения\n` +
@@ -158,16 +158,16 @@ export function registerHandlers(bot: Bot) {
 
     const appKb = openAppKeyboard();
     await ctx.reply(
-      `Снова здесь — и это уже забота о себе 🌿\n\n` +
+      `Снова здесь — и это уже забота о себе \n\n` +
         `Серия: *${pluralDays(user.streak)}* чек-инов подряд.\n` +
         (webappUrl()
-          ? `Открой *приложение* кнопкой ниже или меню ☰ → «Открыть Бережно».\n`
+          ? `Открой *приложение* кнопкой ниже или меню  → «Открыть Бережно».\n`
           : "") +
         `Либо выбери действие в меню.`,
       { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }
     );
     if (appKb) {
-      await ctx.reply("🌿 Mini App — чек-ин, практики, коуч в одном окне:", {
+      await ctx.reply("Mini App — чек-ин, практики, коуч в одном окне:", {
         reply_markup: appKb,
       });
     }
@@ -239,7 +239,7 @@ export function registerHandlers(bot: Bot) {
     }
 
     const target = resolveTargetUserId(ctx, targetTok);
-    if ("error" in target) {
+    if ("error"in target) {
       await ctx.reply(target.error);
       return;
     }
@@ -265,7 +265,7 @@ export function registerHandlers(bot: Bot) {
       `admin grant: by=${ctx.from?.id} → user=${target.userId} plan=${plan} days=${days}`
     );
     await ctx.reply(
-      `✅ Выдано *${PLANS[plan].title}* на *${Math.floor(days)}* дн.\n` +
+      `Выдано *${PLANS[plan].title}* на *${Math.floor(days)}* дн.\n` +
         `Кому: ${target.label}\n` +
         `До: ${until}\n\n` +
         `Это полный доступ тарифа, без крипты. Пусть откроет Mini App заново.`,
@@ -277,7 +277,7 @@ export function registerHandlers(bot: Bot) {
       try {
         await ctx.api.sendMessage(
           target.userId,
-          `🎁 Тебе выдали тариф *${PLANS[plan].title}* до ${until}.\n` +
+          `Тебе выдали тариф *${PLANS[plan].title}* до ${until}.\n` +
             `Открой приложение careofme — доступ уже активен.`,
           { parse_mode: "Markdown" }
         );
@@ -295,7 +295,7 @@ export function registerHandlers(bot: Bot) {
     }
     const tok = (ctx.message?.text || "").trim().split(/\s+/)[1];
     const target = resolveTargetUserId(ctx, tok);
-    if ("error" in target) {
+    if ("error"in target) {
       await ctx.reply(target.error);
       return;
     }
@@ -305,12 +305,12 @@ export function registerHandlers(bot: Bot) {
     }
     store.revokePlan(target.userId);
     console.log(`admin revoke: by=${ctx.from?.id} → user=${target.userId}`);
-    await ctx.reply(`✅ Подписка снята у ${target.label}. Снова free.`);
+    await ctx.reply(`Подписка снята у ${target.label}. Снова free.`);
   });
 
   /**
    * Admin: how many people use the app
-   * /users  or  /usage
+   * /users or  /usage
    */
   bot.command("users", async (ctx) => {
     ensureUser(ctx);
@@ -330,35 +330,35 @@ export function registerHandlers(bot: Bot) {
   });
 
   // Reply keyboard texts
-  bot.hears("🌤 Чек-ин", async (ctx) => {
+  bot.hears("Чек-ин", async (ctx) => {
     ensureUser(ctx);
     await startCheckin(ctx);
   });
-  bot.hears("🧘 Практики", async (ctx) => {
+  bot.hears("Практики", async (ctx) => {
     ensureUser(ctx);
     await openPractices(ctx);
   });
-  bot.hears("📝 Дневник", async (ctx) => {
+  bot.hears("Дневник", async (ctx) => {
     ensureUser(ctx);
     await startJournal(ctx);
   });
-  bot.hears("📊 Стресс", async (ctx) => {
+  bot.hears("Стресс", async (ctx) => {
     ensureUser(ctx);
     await startStress(ctx);
   });
-  bot.hears("💬 AI-коуч", async (ctx) => {
+  bot.hears("AI-коуч", async (ctx) => {
     ensureUser(ctx);
     await openCoach(ctx);
   });
-  bot.hears("📈 Статистика", async (ctx) => {
+  bot.hears("Статистика", async (ctx) => {
     ensureUser(ctx);
     await sendStats(ctx);
   });
-  bot.hears("💎 Подписка", async (ctx) => {
+  bot.hears("Подписка", async (ctx) => {
     ensureUser(ctx);
     await openPremium(ctx);
   });
-  bot.hears("ℹ️ Помощь", async (ctx) => {
+  bot.hears("Помощь", async (ctx) => {
     await sendHelp(ctx);
   });
 
@@ -399,7 +399,7 @@ export function registerHandlers(bot: Bot) {
           `Отлично. Фокус: ${draft.map((f) => FOCUS_LABELS[f]).join(", ")}.\n\n` +
             `Меню всегда под рукой. Начни с короткого чек-ина — 2 минуты.`
         );
-        await ctx.reply("Вот главное меню 👇", {
+        await ctx.reply("Вот главное меню:", {
           reply_markup: mainMenuKeyboard(),
         });
         return;
@@ -541,7 +541,7 @@ export function registerHandlers(bot: Bot) {
             p.durationMin * 60
           );
         }
-        await ctx.answerCallbackQuery({ text: "Засчитано 🌿" });
+        await ctx.answerCallbackQuery({ text: "Засчитано" });
         await ctx.reply(
           `Красиво. Практика «${p?.title ?? id}» отмечена.\n` +
             `Такие 3–5 минут копятся тише, чем кажется.`,
@@ -583,7 +583,7 @@ export function registerHandlers(bot: Bot) {
         await ctx.answerCallbackQuery();
         resetSession(user.userId);
         try {
-          await ctx.editMessageText("Хорошо. Я рядом, когда понадоблюсь 🌿");
+          await ctx.editMessageText("Хорошо. Я рядом, когда понадоблюсь.");
         } catch {
           /* message not editable */
         }
@@ -616,7 +616,7 @@ export function registerHandlers(bot: Bot) {
         try {
           const u = store.startTrial(user.userId, plan);
           await ctx.reply(
-            `🎁 *Пробный период активирован*\n\n` +
+            `*Пробный период активирован*\n\n` +
               `Тариф «${PLANS[plan].title}» на *3 дня* — бесплатно.\n` +
               `Действует до ${new Date(u.premiumUntil!).toLocaleDateString("ru-RU")}.\n\n` +
               `Можно пользоваться всеми возможностями тарифа. Потом — останешься на free или оформишь подписку.`,
@@ -673,7 +673,7 @@ export function registerHandlers(bot: Bot) {
         if (ok) {
           const u = store.getUser(user.userId)!;
           await ctx.reply(
-            `✅ Оплата найдена. Тариф «${PLANS[u.plan || plan].title}» активен` +
+            `Оплата найдена. Тариф «${PLANS[u.plan || plan].title}» активен` +
               (u.premiumUntil
                 ? ` до ${new Date(u.premiumUntil).toLocaleDateString("ru-RU")}`
                 : "") +
@@ -704,7 +704,7 @@ export function registerHandlers(bot: Bot) {
           return;
         }
         const text = await weeklyInsight(u);
-        await ctx.reply(`📬 *Недельный отчёт*\n\n${text}`, {
+        await ctx.reply(`*Недельный отчёт*\n\n${text}`, {
           parse_mode: "Markdown",
         });
         return;
@@ -731,7 +731,7 @@ export function registerHandlers(bot: Bot) {
               ? "внимание"
               : "опора";
         await ctx.reply(
-          `🪞 *Полный анализ чувств*\n` +
+          `*Полный анализ чувств*\n` +
             `_уровень: ${risk}_\n\n` +
             analysis.text.slice(0, 3500),
           { parse_mode: "Markdown" }
@@ -754,14 +754,14 @@ export function registerHandlers(bot: Bot) {
 
     // Ignore if it's a menu button (already handled by hears)
     const menuButtons = [
-      "🌤 Чек-ин",
-      "🧘 Практики",
-      "📝 Дневник",
-      "📊 Стресс",
-      "💬 AI-коуч",
-      "📈 Статистика",
-      "💎 Подписка",
-      "ℹ️ Помощь",
+      "Чек-ин",
+      "Практики",
+      "Дневник",
+      "Стресс",
+      "AI-коуч",
+      "Статистика",
+      "Подписка",
+      "Помощь",
     ];
     if (menuButtons.includes(text)) return;
 
@@ -807,7 +807,7 @@ export function registerHandlers(bot: Bot) {
 
     // Default: gentle nudge
     await ctx.reply(
-      "Я лучше всего работаю через меню 👇\n" +
+      "Я лучше всего работаю через меню \n" +
         "Или напиши /checkin · /coach · /stats · /help",
       { reply_markup: mainMenuKeyboard() }
     );
@@ -838,7 +838,7 @@ async function maybeSendCrisisHelp(
     store.pushCoachMessage(
       full.userId,
       "assistant",
-      `⚠️ Кризисная поддержка\n\n${help.text}`
+      `Кризисная поддержка\n\n${help.text}`
     );
     await ctx.reply(help.text, {
       reply_markup: afterCheckinKeyboard(),
@@ -861,7 +861,7 @@ async function startCheckin(ctx: Context) {
   session.pendingCheckin = {};
   session.flow = "checkin_mood";
   await ctx.reply(
-    `🌤 *Чек-ин* · 2–3 минуты\n\n` +
+    `*Чек-ин* · 2–3 минуты\n\n` +
       `Как *настроение* прямо сейчас?\n` +
       `_1 — очень тяжело · 5 — отлично_`,
     { parse_mode: "Markdown", reply_markup: moodKeyboard("cin_mood") }
@@ -877,7 +877,7 @@ async function finishCheckin(
   const p = session.pendingCheckin;
   if (!p.mood || !p.energy || !p.stress) {
     resetSession(userId);
-    await ctx.reply("Чек-ин прерван. Можно начать снова: «🌤 Чек-ин».");
+    await ctx.reply("Чек-ин прерван. Можно начать снова: « Чек-ин».");
     return;
   }
 
@@ -910,13 +910,13 @@ async function finishCheckin(
   }
 
   await ctx.reply(
-    `✅ Чек-ин сохранён\n\n` +
+    `Чек-ин сохранён\n\n` +
       `Настроение ${p.mood}/5 ${bar(p.mood)}\n` +
       `Энергия ${p.energy}/5 ${bar(p.energy)}\n` +
       `Стресс ${p.stress}/5 ${bar(p.stress)}\n` +
       (p.sleep ? `Сон ${p.sleep}/5 ${bar(p.sleep)}\n` : "") +
       (note ? `\n«${note.slice(0, 120)}»\n` : "") +
-      `\n🔥 Серия: ${pluralDays(user.streak)}\n\n${tip}`,
+      `\n Серия: ${pluralDays(user.streak)}\n\n${tip}`,
     {
       reply_markup: afterCheckinKeyboard(),
     }
@@ -945,7 +945,7 @@ async function finishCheckin(
       store.pushCoachMessage(
         user.userId,
         "assistant",
-        `🛟 Поддержка при низких показателях\n\n${help.text}`
+        `Поддержка при низких показателях\n\n${help.text}`
       );
       const pracLines =
         help.practices?.length
@@ -953,13 +953,13 @@ async function finishCheckin(
             help.practices
               .map(
                 (p) =>
-                  `• ${p.emoji} ${p.title} (~${p.durationMin} мин) — _${p.reason}_`
+                  `• ${p.title} (~${p.durationMin} мин) — _${p.reason}_`
               )
               .join("\n")
           : help.practiceTitle
             ? `\n\nПрактика: ${help.practiceTitle}`
             : "";
-      await ctx.reply(`🛟 *Поддержка*\n\n${help.text}${pracLines}`, {
+      await ctx.reply(`*Поддержка*\n\n${help.text}${pracLines}`, {
         parse_mode: "Markdown",
         reply_markup: afterCheckinKeyboard(),
       });
@@ -982,11 +982,11 @@ async function openPractices(ctx: Context) {
   const merged = [...list, ...rest];
 
   await ctx.reply(
-    `🧘 *Микро-практики*\n\n` +
+    `*Микро-практики*\n\n` +
       `Короткие упражнения на 2–6 минут: дыхание, CBT, тело, сон.\n` +
       (premium
         ? "Подписка активна — открыта вся библиотека."
-        : "🔒 Часть практик — в подписке «Забота» от 199 ₽."),
+        : "Часть практик — в подписке «Забота» от 199 ₽."),
     {
       parse_mode: "Markdown",
       reply_markup: practicesKeyboard(merged, premium),
@@ -1003,7 +1003,7 @@ async function showPractice(ctx: Context, userId: number, practiceId: string) {
   }
   if (!p.free && !store.isPremium(user)) {
     await ctx.reply(
-      `🔒 «${p.title}» доступна в подписке.\n\n` +
+      ` «${p.title}» доступна в подписке.\n\n` +
         `Тарифы от *199 ₽/мес* — дешевле одной сессии у психолога, для ежедневной самопомощи.`,
       { parse_mode: "Markdown", reply_markup: plansKeyboard() }
     );
@@ -1012,7 +1012,7 @@ async function showPractice(ctx: Context, userId: number, practiceId: string) {
 
   const steps = p.steps.map((s, i) => `*${i + 1}.* ${s}`).join("\n");
   await ctx.reply(
-    `${p.emoji} *${p.title}* · ~${p.durationMin} мин\n\n` +
+    `*${p.title}* · ~${p.durationMin} мин\n\n` +
       `${p.intro}\n\n${steps}\n\n_${p.outro}_`,
     {
       parse_mode: "Markdown",
@@ -1040,7 +1040,7 @@ async function startJournal(ctx: Context) {
   session.flow = "journal_write";
   session.journalPrompt = prompt;
   await ctx.reply(
-    `📝 *Дневник*\n\n` +
+    `*Дневник*\n\n` +
       `Промпт на сейчас:\n_${prompt}_\n\n` +
       `Напиши ответ одним сообщением. Можно коротко — 2–5 предложений.`,
     { parse_mode: "Markdown" }
@@ -1051,7 +1051,7 @@ async function startStress(ctx: Context) {
   const user = ensureUser(ctx);
   setFlow(user.userId, "stress_level");
   await ctx.reply(
-    `📊 *Трекер стресса*\n\n` +
+    `*Трекер стресса*\n\n` +
       `Оцени уровень прямо сейчас:\n` +
       `_1 — почти нет · 5 — на пределе_`,
     { parse_mode: "Markdown", reply_markup: moodKeyboard("stress_lv") }
@@ -1109,7 +1109,7 @@ async function finishStress(
       store.pushCoachMessage(
         fresh.userId,
         "assistant",
-        `🛟 Поддержка при высоком стрессе\n\n${help.text}`
+        `Поддержка при высоком стрессе\n\n${help.text}`
       );
       const pracLines =
         help.practices?.length
@@ -1117,13 +1117,13 @@ async function finishStress(
             help.practices
               .map(
                 (p) =>
-                  `• ${p.emoji} ${p.title} (~${p.durationMin} мин) — _${p.reason}_`
+                  `• ${p.title} (~${p.durationMin} мин) — _${p.reason}_`
               )
               .join("\n")
           : help.practiceTitle
             ? `\n\nПрактика: ${help.practiceTitle}`
             : "";
-      await ctx.reply(`🛟 *Поддержка*\n\n${help.text}${pracLines}`, {
+      await ctx.reply(`*Поддержка*\n\n${help.text}${pracLines}`, {
         parse_mode: "Markdown",
         reply_markup: afterCheckinKeyboard(),
       });
@@ -1138,7 +1138,7 @@ async function openCoach(ctx: Context) {
   const quota = store.canUseCoach(user);
   setFlow(user.userId, "coach_chat");
   await ctx.reply(
-    `💬 *AI-коуч «Бережно»*\n\n` +
+    `*AI-коуч «Бережно»*\n\n` +
       `Тёплый разбор на русском: выгорание, тревога, сон, границы.\n` +
       `Не терапия — опора на 2–5 минут.\n\n` +
       `Сегодня: *${quota.remaining}* из ${quota.limit} сообщений.\n\n` +
@@ -1179,7 +1179,7 @@ async function handleCoachMessage(
 
   const left = store.canUseCoach(store.getUser(userId)!).remaining;
   const footer = isCrisis
-    ? "\n\n⚠️ Это сообщение не списало лимит — сейчас важнее поддержка."
+    ? "\n\n Это сообщение не списало лимит — сейчас важнее поддержка."
     : `\n\nОсталось сообщений сегодня: ${left}`;
   await ctx.reply(`${reply}${footer}`, {
     reply_markup: coachKeyboard(),
@@ -1192,8 +1192,8 @@ async function sendStats(ctx: Context) {
   const premium = store.isPremium(user);
 
   await ctx.reply(
-    `📈 *Твоя динамика (7 дней)*\n\n` +
-      `🔥 Серия чек-инов: *${pluralDays(s.streak)}*\n` +
+    `*Твоя динамика (7 дней)*\n\n` +
+      `Серия чек-инов: *${pluralDays(s.streak)}*\n` +
       `Чек-инов за неделю: ${s.checkinCount}\n` +
       `Практик: ${s.practiceCount}\n` +
       `Записей стресса: ${s.stressCount}\n\n` +
@@ -1208,9 +1208,9 @@ async function sendStats(ctx: Context) {
     {
       parse_mode: "Markdown",
       reply_markup: new InlineKeyboard()
-        .text("🪞 Полный анализ чувств", "feelings_analysis")
+        .text("Полный анализ чувств", "feelings_analysis")
         .row()
-        .text("📬 Недельный AI-отчёт", "weekly_insight")
+        .text("Недельный AI-отчёт", "weekly_insight")
         .row()
         .text("« В меню", "nav:home"),
     }
@@ -1228,17 +1228,17 @@ async function openPremium(ctx: Context) {
 
   const payHint = isCryptoPayConfigured()
     ? "Оплата: крипта через @CryptoBot (USDT, TON, BTC, ETH…), сумма в ₽."
-    : "⚠️ Оплата временно недоступна — CRYPTO_PAY_TOKEN не настроен.";
+    : "Оплата временно недоступна — CRYPTO_PAY_TOKEN не настроен.";
 
   const status =
     store.isPremium(user) && user.premiumUntil
       ? `\n\nТвой тариф: ${PLANS[user.plan || "free"].title}${
-          user.isTrial ? " (пробный)" : ""
+          user.isTrial ? "(пробный)" : ""
         } до ${new Date(user.premiumUntil).toLocaleDateString("ru-RU")}`
       : "\n\nСейчас: бесплатный тариф. Можно взять 3 дня free на Заботу и/или Плюс.";
 
   await ctx.reply(
-    `💎 Подписка careofme\n\n` +
+    `Подписка careofme\n\n` +
       `Ежедневная опора: выгорание, тревога, сон — на русском.\n` +
       `Пробный 3 дня · сроки 7д / 30д / 3м / 6м · от 89 ₽\n\n` +
       lines.join("\n\n") +
@@ -1261,7 +1261,7 @@ async function offerPlanPayment(
     await ctx.reply(
       `${info.title} — ${rub} ₽ / ${periodLabel}\n\n` +
         info.perks.map((p) => `• ${p}`).join("\n") +
-        `\n\n⚠️ Оплата криптой не настроена на сервере.`,
+        `\n\n Оплата криптой не настроена на сервере.`,
       { reply_markup: plansKeyboard() }
     );
     return;
@@ -1281,7 +1281,7 @@ async function offerPlanPayment(
       `${info.title} — ${rub} ₽ / ${periodLabel}\n` +
         `${planPriceLabel(plan, period)}\n\n` +
         info.perks.map((p) => `• ${p}`).join("\n") +
-        `\n\n💎 Оплата в Crypto Bot (USDT, фикс. курс ₽).\n` +
+        `\n\n Оплата в Crypto Bot (USDT, фикс. курс ₽).\n` +
         `1) Нажми «Оплатить криптой»\n` +
         `2) Подтверди платёж\n` +
         `3) Вернись и нажми «Я оплатил(а)»\n\n` +
@@ -1315,9 +1315,9 @@ async function openMiniApp(ctx: Context) {
     return;
   }
   await ctx.reply(
-    "🌿 *Бережно* — приложение внутри Telegram\n\n" +
+    "*Бережно* — приложение внутри Telegram\n\n" +
       "Чек-ин, практики, дневник, стресс, AI-коуч и статистика — в удобном интерфейсе.\n" +
-      "Также: кнопка меню ☰ → «Открыть Бережно».",
+      "Также: кнопка меню → «Открыть Бережно».",
     { parse_mode: "Markdown", reply_markup: appKb }
   );
 }
@@ -1328,20 +1328,20 @@ async function replyUsageStats(ctx: Context) {
     s.totalUsers ? `${Math.round((n / s.totalUsers) * 100)}%` : "0%";
 
   await ctx.reply(
-    `📊 *Статистика careofme*\n` +
+    `*Статистика careofme*\n` +
       `_${new Date(s.generatedAt).toLocaleString("ru-RU")}_\n\n` +
-      `👥 *Всего пользователей:* ${s.totalUsers}\n` +
+      `*Всего пользователей:* ${s.totalUsers}\n` +
       `• free: ${s.free}\n` +
       `• premium: ${s.premium} (care ${s.care} · plus ${s.plus})\n` +
       `• из них trial: ${s.trial}\n\n` +
-      `🟢 *Активность*\n` +
+      `*Активность*\n` +
       `• за 24 ч: ${s.active1d} (${pct(s.active1d)})\n` +
       `• за 7 дн: ${s.active7d} (${pct(s.active7d)})\n` +
       `• за 30 дн: ${s.active30d} (${pct(s.active30d)})\n\n` +
-      `🆕 *Новые*\n` +
+      `*Новые*\n` +
       `• за 7 дн: ${s.new7d}\n` +
       `• за 30 дн: ${s.new30d}\n\n` +
-      `📈 *Вовлечённость*\n` +
+      `*Вовлечённость*\n` +
       `• прошли онбординг: ${s.onboardingDone}\n` +
       `• хотя бы 1 чек-ин: ${s.withCheckin}\n` +
       `• чек-инов всего: ${s.totalCheckins}\n` +
@@ -1354,15 +1354,15 @@ async function replyUsageStats(ctx: Context) {
 
 async function sendHelp(ctx: Context) {
   await ctx.reply(
-    `ℹ️ *Как пользоваться*\n\n` +
-      `🌿 *Приложение* — /app или кнопка меню\n` +
-      `🌤 *Чек-ин* — настроение, энергия, стресс, сон (2–3 мин)\n` +
-      `🧘 *Практики* — дыхание, заземление, CBT, сон\n` +
-      `📝 *Дневник* — короткий journaling с промптом\n` +
-      `📊 *Стресс* — быстрая отметка уровня и источника\n` +
-      `💬 *AI-коуч* — разговор на русском (лимиты по тарифу)\n` +
-      `📈 *Статистика* — неделя и серия\n` +
-      `💎 *Подписка* — 199 / 349 ₽\n\n` +
+    `*Как пользоваться*\n\n` +
+      `*Приложение* — /app или кнопка меню\n` +
+      `*Чек-ин* — настроение, энергия, стресс, сон (2–3 мин)\n` +
+      `*Практики* — дыхание, заземление, CBT, сон\n` +
+      `*Дневник* — короткий journaling с промптом\n` +
+      `*Стресс* — быстрая отметка уровня и источника\n` +
+      `*AI-коуч* — разговор на русском (лимиты по тарифу)\n` +
+      `*Статистика* — неделя и серия\n` +
+      `*Подписка* — 199 / 349 ₽\n\n` +
       `Команды: /start /app /checkin /coach /stats /help\n\n` +
       `${DISCLAIMER}\n\n` +
       `${CRISIS_HINT}`,

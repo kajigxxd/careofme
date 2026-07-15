@@ -519,7 +519,7 @@ async function loadMe() {
     hideAuthBanner();
     const name = state.me.user.firstName || "друг";
     $("#greeting").textContent = `Привет, ${name}`;
-    $("#streakChip").textContent = `🔥 ${state.me.streak}`;
+    $("#streakChip").textContent = `${state.me.streak}`;
     $("#sMood").textContent = fmt(state.me.stats.avgMood);
     $("#sEnergy").textContent = fmt(state.me.stats.avgEnergy);
     $("#sStress").textContent = fmt(state.me.stats.avgStress);
@@ -555,20 +555,20 @@ async function loadMe() {
 
 /* —— Onboarding —— */
 const DEFAULT_FOCUS_LABELS = {
-  burnout: "🔥 Выгорание",
-  anxiety: "🌊 Тревога",
-  insomnia: "🌙 Бессонница / сон",
-  loneliness: "🫧 Одиночество",
-  sadness: "🌧 Грусть / тяжесть",
-  overwhelm: "🌀 Перегруз / хаос",
-  anger: "⚡️ Раздражение / злость",
-  emptiness: "🕳 Пустота / онемение",
-  guilt: "🪞 Вина / стыд",
-  fear: "🕯 Страх / неуверенность в будущем",
-  relationships: "💬 Напряжение в отношениях",
-  self_doubt: "🌫️ Неуверенность в себе",
-  apathy: "🪨 Апатия / нет сил",
-  general: "🌿 Просто тяжело / не знаю",
+  burnout: "Выгорание",
+  anxiety: "Тревога",
+  insomnia: "Бессонница / сон",
+  loneliness: "Одиночество",
+  sadness: "Грусть / тяжесть",
+  overwhelm: "Перегруз / хаос",
+  anger: "Раздражение / злость",
+  emptiness: "Пустота / онемение",
+  guilt: "Вина / стыд",
+  fear: "Страх / неуверенность в будущем",
+  relationships: "Напряжение в отношениях",
+  self_doubt: "Неуверенность в себе",
+  apathy: "Апатия / нет сил",
+  general: "Просто тяжело / не знаю",
 };
 
 function renderOnboarding() {
@@ -649,7 +649,7 @@ async function finishFeelingsSelection({ analyze = true, goHome = false } = {}) 
       showSupportResult({
         title: res.crisis ? "Важно · поддержка" : "Разбор чувств",
         meta: res.reflection?.labels?.length
-          ? `Сейчас: ${res.reflection.labels.join(" · ")}`
+          ? `Сейчас: ${res.reflection.labels.join("· ")}`
           : "На основе твоего выбора",
         insight: null,
         autoHelp: help,
@@ -662,7 +662,7 @@ async function finishFeelingsSelection({ analyze = true, goHome = false } = {}) 
         if (helpEl) {
           helpEl.classList.remove("crisis-help");
           helpEl.textContent =
-            "🪞 Что может стоять за этим\n\n" + help.text;
+            "Что может стоять за этим\n\n" + help.text;
         }
       }
     } else {
@@ -697,7 +697,7 @@ function renderCheckinStep() {
   const dots = $("#checkinDots");
   if (dots) {
     dots.innerHTML = CHECKIN_STEPS.map(
-      (_, i) => `<span class="${i <= s ? "on" : ""}"></span>`
+      (_, i) => `<span class="${i <= s ? "on": ""}"></span>`
     ).join("");
   }
 
@@ -721,7 +721,7 @@ function renderCheckinStep() {
     for (let i = 1; i <= 5; i++) {
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "score" + (current === i ? " selected" : "");
+      b.className = "score" + (current === i ? "selected" : "");
       b.textContent = String(i);
       b.onclick = () => {
         state.checkin[meta.key] = i;
@@ -763,7 +763,7 @@ async function submitCheckin() {
     };
     if (state.checkin.sleep) body.sleep = state.checkin.sleep;
     const res = await api("/checkin", { method: "POST", body });
-    toast(`Сохранено · серия ${res.streak} 🔥`);
+    toast(`Сохранено · серия ${res.streak}`);
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
     await loadMe();
     if (res.crisis || res.insight || res.autoHelp || res.needsSupport) {
@@ -795,12 +795,11 @@ async function loadPractices() {
       b.type = "button";
       b.className = "practice-item";
       b.innerHTML = `
-        <div class="emoji">${p.emoji}</div>
         <div class="meta">
           <div class="t">${p.title}</div>
           <div class="s">${p.durationMin} мин · ${p.kind}</div>
         </div>
-        <div class="lock">${p.locked ? "🔒" : "›"}</div>`;
+        <div class="lock">${p.locked ? "закрыто" : "›"}</div>`;
       b.onclick = () => openPractice(p.id, p.locked);
       list.appendChild(b);
     }
@@ -827,7 +826,7 @@ async function openPractice(id, locked) {
   try {
     const { practice } = await api(`/practices/${id}`);
     state.currentPracticeId = practice.id;
-    $("#pTitle").textContent = `${practice.emoji} ${practice.title}`;
+    $("#pTitle").textContent = `${practice.title}`;
     $("#pMeta").textContent = `~${practice.durationMin} мин`;
     $("#pIntro").textContent = practice.intro;
     $("#pOutro").textContent = practice.outro;
@@ -845,7 +844,7 @@ function celebrateAchievements(list) {
   if (!list?.length) return;
   const first = list[0];
   const more = list.length > 1 ? ` (+${list.length - 1})` : "";
-  const msg = `${first.emoji || "🏆"} ${first.title || "Ачивка!"}${more}`;
+  const msg = `${first.title || "Ачивка"}${more}`;
   toast(msg);
   let el = document.getElementById("achToast");
   if (!el) {
@@ -854,7 +853,7 @@ function celebrateAchievements(list) {
     el.className = "ach-toast hidden";
     document.body.appendChild(el);
   }
-  el.textContent = `Ачивка: ${first.emoji || "🏆"} ${first.title || ""}${more}`;
+  el.textContent = `Ачивка: ${first.title || ""}${more}`;
   el.classList.remove("hidden");
   clearTimeout(celebrateAchievements._t);
   celebrateAchievements._t = setTimeout(() => el.classList.add("hidden"), 3200);
@@ -872,7 +871,7 @@ async function onPracticeDone() {
       method: "POST",
       body: {},
     });
-    toast("Засчитано 🌿");
+    toast("Засчитано");
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
     if (res.newAchievements?.length) celebrateAchievements(res.newAchievements);
     go("practices");
@@ -896,12 +895,11 @@ async function loadTherapy() {
       b.type = "button";
       b.className = "practice-item";
       b.innerHTML = `
-        <div class="emoji">${t.emoji}</div>
         <div class="meta">
           <div class="t">${t.title}</div>
           <div class="s">${t.durationMin} мин · самопомощь</div>
         </div>
-        <div class="lock">${t.locked ? "🔒" : "›"}</div>`;
+        <div class="lock">${t.locked ? "закрыто" : "›"}</div>`;
       b.onclick = () => openTherapy(t.id, t.locked);
       list.appendChild(b);
     }
@@ -919,7 +917,7 @@ async function openTherapy(id, locked) {
   try {
     const { module: t } = await api(`/therapy/${id}`);
     state.currentTherapyId = t.id;
-    if ($("#tTitle")) $("#tTitle").textContent = `${t.emoji} ${t.title}`;
+    if ($("#tTitle")) if ($("#tTitle")) $("#tTitle").textContent = `${t.title}`;
     if ($("#tMeta")) $("#tMeta").textContent = `~${t.durationMin} мин`;
     if ($("#tDisclaimer")) $("#tDisclaimer").textContent = t.disclaimer || "";
     if ($("#tIntro")) $("#tIntro").textContent = t.intro || "";
@@ -943,7 +941,7 @@ async function onTherapyDone() {
       method: "POST",
       body: {},
     });
-    toast("Модуль завершён 🪷");
+    toast("Модуль завершён ");
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
     if (res.newAchievements?.length) celebrateAchievements(res.newAchievements);
     go("therapy");
@@ -983,8 +981,7 @@ async function loadAchievements() {
               month: "short",
             })
           : "";
-        return `<div class="ach-item ${unlocked ? "" : "locked"}">
-          <div class="ach-emoji">${a.emoji || "🏆"}</div>
+        return `<div class="ach-item ${unlocked ? "": "locked"}">
           <div>
             <div class="ach-title">${a.title || ""}</div>
             <div class="ach-desc">${a.description || ""}</div>
@@ -1008,7 +1005,7 @@ function renderStressUI() {
   for (let i = 1; i <= 5; i++) {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "score" + (state.stressLevel === i ? " selected" : "");
+    b.className = "score" + (state.stressLevel === i ? "selected" : "");
     b.textContent = String(i);
     b.onclick = () => {
       state.stressLevel = i;
@@ -1073,9 +1070,9 @@ function showSupportResult({
       helpEl.classList.remove("hidden");
       helpEl.classList.toggle("crisis-help", !!crisis || !!autoHelp.urgent);
       const prefix = crisis || autoHelp.urgent
-        ? "⚠️ Сейчас важна живая поддержка\n\n"
+        ? "Сейчас важна живая поддержка\n\n"
         : needsSupport
-          ? "🛟 Поддержка · варианты именно для тебя\n\n"
+          ? "Поддержка · варианты именно для тебя\n\n"
           : "";
       helpEl.textContent = prefix + autoHelp.text;
     } else {
@@ -1095,7 +1092,7 @@ function showSupportResult({
       wrap.classList.remove("hidden");
       list.innerHTML = picks
         .map((p) => {
-          const title = `${p.emoji || "🧘"} ${p.title || "Практика"}`;
+          const title = `${p.title || "Практика"}`;
           const meta = p.durationMin ? `~${p.durationMin} мин` : "";
           const reason = (p.reason || "").replace(/</g, "&lt;");
           return `<button type="button" class="practice-pick" data-open-practice="${p.id}">
@@ -1118,8 +1115,8 @@ function showSupportResult({
           practiceBtn.dataset.practiceId =
             autoHelp?.practiceId || "box_breath";
           practiceBtn.textContent = autoHelp?.practiceTitle
-            ? `🧘 ${autoHelp.practiceTitle}`
-            : "🧘 Практика";
+            ? ` ${autoHelp.practiceTitle}`
+            : "Практика";
         } else {
           practiceBtn.style.display = "none";
         }
@@ -1130,12 +1127,12 @@ function showSupportResult({
       practiceBtn.style.display = "";
       practiceBtn.dataset.practiceId = autoHelp.practiceId;
       practiceBtn.textContent = autoHelp.practiceTitle
-        ? `🧘 ${autoHelp.practiceTitle}`
-        : "🧘 Практика";
+        ? ` ${autoHelp.practiceTitle}`
+        : "Практика";
     } else {
       practiceBtn.style.display = needsSupport || crisis ? "" : "none";
       practiceBtn.dataset.practiceId = autoHelp?.practiceId || "box_breath";
-      practiceBtn.textContent = "🧘 Практика";
+      practiceBtn.textContent = "Практика";
     }
   }
 
@@ -1327,7 +1324,7 @@ function renderJournalList() {
     .map((e) => {
       const preview = (e.text || "").replace(/</g, "&lt;").slice(0, 280);
       const prompt = (e.prompt || "Запись").replace(/</g, "&lt;");
-      const edited = e.updatedAt ? " · изм." : "";
+      const edited = e.updatedAt ? "· изм." : "";
       const id = e.id || "";
       return `<button type="button" class="journal-item" data-journal-id="${id}">
           <span class="j-date">${formatJournalDate(e.at)}${edited}</span>
@@ -1474,7 +1471,7 @@ async function onJournalSave() {
         ...(state.journalEntries || []).filter((e) => e.id !== res.entry.id),
       ];
     }
-    toast("Сохранено 📝");
+    toast("Сохранено ");
     if (tg?.HapticFeedback) {
       try {
         tg.HapticFeedback.notificationOccurred("success");
@@ -1606,7 +1603,7 @@ async function sendCoach(text) {
     if (pending) pending.remove();
     if (e.status === 429) {
       appendBubble(
-        "Лимит на сегодня. Завтра обновится — или подписка 💎 (крипта через Crypto Bot).\n\n" +
+        "Лимит на сегодня. Завтра обновится — или подписка (крипта через Crypto Bot).\n\n" +
           "Если совсем тяжело: 8-800-2000-122 или 112.",
         "bot"
       );
@@ -1654,7 +1651,7 @@ async function loadStats() {
             hour: "2-digit",
             minute: "2-digit",
           });
-          return `<div class="hist-row"><span>${d}</span><span>😊${c.mood} ⚡${c.energy} 🌊${c.stress}</span></div>`;
+          return `<div class="hist-row"><span>${d}</span><span>${c.mood} ${c.energy} ${c.stress}</span></div>`;
         })
         .join("");
     }
@@ -1750,7 +1747,7 @@ function showPayModal(plan, payUrl, invoiceId, meta = {}) {
   const period = meta.periodLabel || meta.period || "";
   const usdt = meta.amountUsdt ? `≈ ${meta.amountUsdt} USDT` : "";
   const macHint = isMacDesktop() || isDesktopClient()
-    ? " На Mac: обязательно нажми «Открыть Crypto Bot»."
+    ? "На Mac: обязательно нажми «Открыть Crypto Bot»."
     : "";
   $("#payModalText").textContent =
     `«${planTitle}»${period ? ` · ${period}` : ""}${rub ? ` · ${rub}` : ""}${usdt ? ` · ${usdt}` : ""} (курс 81 ₽). ` +
@@ -1949,7 +1946,7 @@ async function verifyPayment(invoiceId, silent = false) {
       body: { invoiceId: invoiceId || state.lastInvoiceId || undefined },
     });
     if (st.premium) {
-      toast("Оплата прошла ✨");
+      toast("Оплата прошла ");
       hidePayModal();
       hidePeriodModal();
       await loadMe();
@@ -1974,13 +1971,13 @@ function updatePayBanner() {
       ? new Date(state.me.premiumUntil).toLocaleDateString("ru-RU")
       : "";
     const title =
-      state.me.plans?.[state.me.plan]?.title || state.me.plan || "Pro";
-    const trialNote = state.me.isTrial ? " · пробный период" : "";
+      state.me.plans?.[state.me.plan]?.title || state.me.plan || "Plus";
+    const trialNote = state.me.isTrial ? "· пробный период" : "";
     banner.innerHTML = `
-      <div class="pay-banner-title">${state.me.isTrial ? "🎁 Пробный период" : "✅ Подписка активна"}</div>
+      <div class="pay-banner-title">${state.me.isTrial ? "Пробный период" : "Подписка активна"}</div>
       <p class="muted">Тариф «${title}»${trialNote}${until ? ` до ${until}` : ""}</p>
       <button class="linkish" data-go="premium" type="button">Управление →</button>`;
-    if (chip) chip.textContent = state.me.isTrial ? "🎁 Pro" : "✅ Pro";
+    if (chip) chip.textContent = state.me.isTrial ? "Plus · пробный" : "Plus";
     return;
   }
 
@@ -1990,12 +1987,12 @@ function updatePayBanner() {
       ? `<div class="pay-row" style="margin-bottom:8px">
           ${
             te.care
-              ? `<button class="btn ghost" type="button" data-trial-plan="care">🎁 Забота · 3 дня</button>`
+              ? `<button class="btn ghost" type="button" data-trial-plan="care"> Забота · 3 дня</button>`
               : ""
           }
           ${
             te.plus
-              ? `<button class="btn ghost" type="button" data-trial-plan="plus">🎁 Плюс · 3 дня</button>`
+              ? `<button class="btn ghost" type="button" data-trial-plan="plus"> Плюс · 3 дня</button>`
               : ""
           }
         </div>
@@ -2004,7 +2001,7 @@ function updatePayBanner() {
 
   // Restore pay UI for free users
   banner.innerHTML = `
-    <div class="pay-banner-title">💎 Подписка · 3 дня бесплатно</div>
+    <div class="pay-banner-title"> Подписка · 3 дня бесплатно</div>
     <p class="muted" id="payBannerText">
       Попробуй «Забота» или «Плюс» без оплаты, затем USDT через Crypto Bot.
     </p>
@@ -2018,7 +2015,7 @@ function updatePayBanner() {
       </button>
     </div>
     <button class="linkish" data-go="premium" type="button">Все тарифы и детали →</button>`;
-  if (chip) chip.textContent = "💎 Pro";
+  if (chip) chip.textContent = "Plus";
   bindPayButtons(banner);
 }
 
@@ -2063,16 +2060,16 @@ function renderPlans() {
             isTrial ? "Пробный · активен" : "Активен"
           }</button>`;
         } else if (premium && current !== p.id) {
-          btn = `<button class="btn primary block" type="button" data-pay-plan="${p.id}">💎 Перейти · ${p.price}</button>`;
+          btn = `<button class="btn primary block" type="button" data-pay-plan="${p.id}"> Перейти · ${p.price}</button>`;
         } else {
           const canTrial = p.id === "care" || p.id === "plus" ? te[p.id] : false;
           const trialBtn = canTrial
-            ? `<button class="btn primary block" type="button" data-trial-plan="${p.id}" style="margin-bottom:8px">🎁 3 дня бесплатно</button>`
+            ? `<button class="btn primary block" type="button" data-trial-plan="${p.id}" style="margin-bottom:8px"> 3 дня бесплатно</button>`
             : state.me?.trialUsed?.[p.id]
               ? `<p class="muted" style="margin:0 0 8px;font-size:0.82rem">Пробный период уже использован</p>`
               : "";
           const payBtn = cryptoOk
-            ? `<button class="btn ${canTrial ? "ghost" : "primary"} block" type="button" data-pay-plan="${p.id}">💎 Выбрать срок и оплатить</button>`
+            ? `<button class="btn ${canTrial ? "ghost": "primary"} block" type="button" data-pay-plan="${p.id}"> Выбрать срок и оплатить</button>`
             : `<button class="btn ghost block" type="button" disabled>Оплата недоступна</button>`;
           btn = trialBtn + payBtn;
         }
@@ -2082,7 +2079,7 @@ function renderPlans() {
             : "";
         return `
       <div class="plan">
-        <h3>${p.title}${active && p.id !== "free" && premium ? (isTrial ? " · пробный" : " · сейчас") : ""}</h3>
+        <h3>${p.title}${active && p.id !== "free" && premium ? (isTrial ? "· пробный" : "· сейчас") : ""}</h3>
         <div class="price">${p.price}</div>
         ${hint}
         <ul>${(p.perks || []).map((x) => `<li>${x}</li>`).join("")}</ul>

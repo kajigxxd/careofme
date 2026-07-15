@@ -17,7 +17,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715r" />
+    <link rel="stylesheet" href="./styles.css?v=20260715t" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -42,20 +42,18 @@
           </div>
         </div>
         <div class="top-actions">
-          <button class="chip pay-chip" data-go="premium" type="button" id="payChip">
-            💎 Pro
-          </button>
-          <button class="chip" id="streakChip" type="button">🔥 0</button>
+          <button class="chip pay-chip" data-go="premium" type="button" id="payChip">Plus</button>
+          <button class="chip" id="streakChip" type="button">0</button>
         </div>
       </header>
 
       <div id="authBanner" class="auth-banner hidden" role="alert">
         <p id="authBannerText">
-          Открой приложение из бота <strong>@careofme_bot</strong> — команда
+        Открой приложение из бота <strong>@careofme_bot</strong> — команда
           /start или /app, либо кнопка меню. Ссылка из браузера не сработает.
         </p>
         <button type="button" class="btn primary small" id="authRetryBtn">
-          Попробовать снова
+        Попробовать снова
         </button>
       </div>
 
@@ -77,38 +75,32 @@
               </div>
             </div>
             <button class="btn primary block" data-go="checkin">
-              🌤 Начать чек-ин
+             Начать чек-ин
             </button>
           </div>
 
           <div class="grid-2">
             <button class="card action" data-go="practices">
-              <span class="a-emoji">🧘</span>
               <span class="a-title">Практики</span>
               <span class="a-sub">дыхание · CBT</span>
             </button>
             <button class="card action" data-go="therapy">
-              <span class="a-emoji">🪷</span>
               <span class="a-title">Терапия</span>
               <span class="a-sub">модули самопомощи</span>
             </button>
             <button class="card action" data-go="stress">
-              <span class="a-emoji">📊</span>
               <span class="a-title">Стресс</span>
               <span class="a-sub">быстрый трекер</span>
             </button>
             <button class="card action" data-go="journal">
-              <span class="a-emoji">📝</span>
               <span class="a-title">Дневник</span>
               <span class="a-sub">journaling</span>
             </button>
             <button class="card action" data-go="coach">
-              <span class="a-emoji">💬</span>
               <span class="a-title">AI-коуч</span>
               <span class="a-sub">на русском</span>
             </button>
             <button class="card action" data-go="achievements">
-              <span class="a-emoji">🏆</span>
               <span class="a-title">Ачивки</span>
               <span class="a-sub" id="homeAchCount">за практики</span>
             </button>
@@ -131,16 +123,16 @@
 
           <!-- Явная оплата криптой -->
           <div class="card pay-banner" id="payBanner">
-            <div class="pay-banner-title">💎 Подписка · оплата криптой</div>
+            <div class="pay-banner-title">Подписка · оплата криптой</div>
             <p class="muted" id="payBannerText">
-              USDT · курс 81 ₽ · через Crypto Bot
+            USDT · курс 81 ₽ · через Crypto Bot
             </p>
             <div class="pay-row">
               <button class="btn primary" type="button" data-pay-plan="care" id="homePayCare">
-                Забота · 199 ₽
+              Забота · 199 ₽
               </button>
               <button class="btn primary" type="button" data-pay-plan="plus" id="homePayPlus">
-                Плюс · 349 ₽
+              Плюс · 349 ₽
               </button>
             </div>
             <button class="linkish" data-go="premium" type="button">Все тарифы и детали →</button>
@@ -153,7 +145,7 @@
             id="feelingsAnalysisBtn"
             style="margin-top:10px"
           >
-            🪞 Полный анализ чувств
+           Полный анализ чувств
           </button>
           <button
             class="btn ghost block"
@@ -162,7 +154,7 @@
             data-action="edit-feelings"
             style="margin-top:8px"
           >
-            Изменить, что я чувствую
+          Изменить, что я чувствую
           </button>
           <p class="fineprint" id="disclaimer"></p>
         </section>
@@ -172,14 +164,14 @@
           <div class="card">
             <h1 id="onboardingTitle">Что ты чувствуешь сейчас?</h1>
             <p class="muted" id="onboardingHint">
-              Можно несколько — это не диагноз. После выбора разберём, что за этим может стоять, и что поможет.
+            Можно несколько — это не диагноз. После выбора разберём, что за этим может стоять, и что поможет.
             </p>
             <div class="chips wrap focus-grid" id="focusChips"></div>
             <button class="btn primary block" id="onboardingDone" type="button">
-              Разобрать и помочь
+            Разобрать и помочь
             </button>
             <button class="btn ghost block" id="onboardingSkipHome" type="button" style="margin-top:8px;display:none">
-              Только сохранить и на главную
+            Только сохранить и на главную
             </button>
           </div>
         </section>
@@ -217,14 +209,14 @@
             </div>
             <div class="row-btns" style="flex-wrap:wrap;margin-top:12px">
               <button class="btn primary" type="button" id="supportPracticeBtn">
-                🧘 Практика
+               Практика
               </button>
               <button class="btn ghost" type="button" id="supportCoachBtn">
-                💬 К коучу
+               К коучу
               </button>
             </div>
             <button class="btn ghost block" type="button" data-go="home" style="margin-top:8px">
-              На главную
+            На главную
             </button>
           </div>
         </section>
@@ -233,7 +225,7 @@
         <section class="screen" data-screen="practices">
           <div class="row-between">
             <h1>Практики</h1>
-            <button class="btn small" id="recommendPractice" type="button">🎲 Мне</button>
+            <button class="btn small" id="recommendPractice" type="button">Мне</button>
           </div>
           <div id="practicesList" class="list"></div>
         </section>
@@ -246,7 +238,7 @@
             <p id="pIntro"></p>
             <ol id="pSteps" class="steps"></ol>
             <p class="muted" id="pOutro"></p>
-            <button class="btn primary block" id="practiceDone" type="button">✅ Сделал(а)</button>
+            <button class="btn primary block" id="practiceDone" type="button">Сделал(а)</button>
           </div>
         </section>
 
@@ -268,7 +260,7 @@
             <p id="tIntro"></p>
             <ol id="tSteps" class="steps"></ol>
             <p class="muted" id="tOutro"></p>
-            <button class="btn primary block" id="therapyDone" type="button">✅ Завершить модуль</button>
+            <button class="btn primary block" id="therapyDone" type="button">Завершить модуль</button>
           </div>
         </section>
 
@@ -333,7 +325,7 @@
           <div id="journalListPane" class="hidden">
             <div id="journalList" class="list"></div>
             <p class="muted" id="journalEmpty" style="display:none;text-align:center;padding:16px">
-              Пока нет записей. Напиши первую на вкладке «Новая».
+            Пока нет записей. Напиши первую на вкладке «Новая».
             </p>
           </div>
 
@@ -367,9 +359,9 @@
             <span class="chip" id="coachQuota">—</span>
           </div>
           <div class="quick-row">
-            <button class="pill" data-coach="Чувствую выгорание: мало сил. Помоги мягко на ближайший час.">🔥 Выгораю</button>
-            <button class="pill" data-coach="Сейчас тревожно. Помоги заземлиться.">🌊 Тревожно</button>
-            <button class="pill" data-coach="Не могу отключиться / проблемы со сном. Короткий план.">🌙 Сон</button>
+            <button class="pill" data-coach="Чувствую выгорание: мало сил. Помоги мягко на ближайший час.">Выгораю</button>
+            <button class="pill" data-coach="Сейчас тревожно. Помоги заземлиться.">Тревожно</button>
+            <button class="pill" data-coach="Не могу отключиться / проблемы со сном. Короткий план.">Сон</button>
           </div>
           <div class="chat" id="chat"></div>
           <form class="composer" id="coachForm">
@@ -379,7 +371,7 @@
               autocomplete="off"
               placeholder="Напиши, что сейчас с тобой…"
             />
-            <button class="btn primary icon" type="submit">➤</button>
+            <button class="btn primary icon" type="submit"></button>
           </form>
         </section>
 
@@ -388,12 +380,12 @@
           <h1>Статистика</h1>
           <div class="card" id="statsCard"></div>
           <div class="card" id="feelingsAnalysisCard">
-            <h2>🪞 Анализ чувств</h2>
+            <h2>Анализ чувств</h2>
             <p class="muted" id="feelingsAnalysisHint">
-              Полный разбор фокуса, чек-инов, стресса и дневника — в тарифе Плюс.
+            Полный разбор фокуса, чек-инов, стресса и дневника — в тарифе Плюс.
             </p>
             <button class="btn primary block" type="button" id="feelingsAnalysisBtn2">
-              Собрать анализ
+            Собрать анализ
             </button>
             <div id="feelingsAnalysisOut" class="support-block hidden" style="margin-top:12px"></div>
           </div>
@@ -405,14 +397,14 @@
 
         <!-- PREMIUM -->
         <section class="screen" data-screen="premium">
-          <h1>💎 Подписка</h1>
+          <h1>Подписка</h1>
           <p class="muted">
-            3 дня бесплатно на каждый тариф · потом USDT · без давления
+           3 дня бесплатно на каждый тариф · потом USDT · без давления
           </p>
           <div class="card crypto-info" id="cryptoInfo">
             <div class="crypto-title">Пробный период и оплата</div>
             <p class="muted">
-              Можно попробовать <b>Заботу</b> и <b>Плюс</b> по <b>3 дня</b> бесплатно
+            Можно попробовать <b>Заботу</b>и <b>Плюс</b>по <b>3 дня</b>бесплатно
               (1 раз на тариф). Дальше — <b>@CryptoBot</b>, счёт в <b>USDT</b>
               (курс <b>81 ₽</b>).
             </p>
@@ -421,29 +413,29 @@
             </div>
             <div class="pay-row" style="margin-top:12px">
               <button class="btn primary block" type="button" data-trial-plan="care">
-                🎁 Забота · 3 дня бесплатно
+               Забота · 3 дня бесплатно
               </button>
             </div>
             <div class="pay-row">
               <button class="btn primary block" type="button" data-trial-plan="plus">
-                🎁 Плюс · 3 дня бесплатно
+               Плюс · 3 дня бесплатно
               </button>
             </div>
             <div class="pay-row" style="margin-top:8px">
               <button class="btn ghost block" type="button" data-pay-plan="care">
-                💎 Забота · от 89 ₽
+               Забота · от 89 ₽
               </button>
             </div>
             <div class="pay-row">
               <button class="btn ghost block" type="button" data-pay-plan="plus">
-                ✨ Плюс · от 119 ₽
+               Плюс · от 119 ₽
               </button>
             </div>
             <p class="muted" style="font-size:0.8rem;margin-top:8px">
-              Срок: 7 дней · 30 дней · 3 месяца · 6 месяцев
+            Срок: 7 дней · 30 дней · 3 месяца · 6 месяцев
             </p>
             <button class="btn ghost block" type="button" id="checkPayBtn" style="margin-top:8px">
-              🔄 Я уже оплатил(а) — проверить
+             Я уже оплатил(а) — проверить
             </button>
             <p class="muted" id="payStatus" style="margin-top:8px"></p>
           </div>
@@ -452,20 +444,12 @@
       </main>
 
       <nav class="tabbar">
-        <button class="tab active" data-go="home" type="button">
-          <span>🏠</span><span>Дом</span>
-        </button>
-        <button class="tab" data-go="checkin" type="button">
-          <span>🌤</span><span>Чек-ин</span>
-        </button>
-        <button class="tab" data-go="practices" type="button">
-          <span>🧘</span><span>Практики</span>
-        </button>
-        <button class="tab" data-go="coach" type="button">
-          <span>💬</span><span>Коуч</span>
-        </button>
+        <button class="tab active" data-go="home" type="button"><span>Дом</span></button>
+        <button class="tab" data-go="checkin" type="button"><span>Чек-ин</span></button>
+        <button class="tab" data-go="practices" type="button"><span>Практики</span></button>
+        <button class="tab" data-go="coach" type="button"><span>Коуч</span></button>
         <button class="tab" data-go="premium" type="button">
-          <span>💎</span><span>Pro</span>
+          <span>Plus</span>
         </button>
       </nav>
     </div>
@@ -491,7 +475,7 @@
           style="display:block;text-align:center;text-decoration:none;box-sizing:border-box"
         >Открыть Crypto Bot</a>
         <button class="btn ghost block" type="button" id="payModalCheck" style="margin-top:8px">
-          Проверить оплату
+        Проверить оплату
         </button>
         <button class="linkish" type="button" id="payModalClose">Закрыть</button>
         <p class="muted" style="font-size:0.78rem;margin-top:10px" id="payModalLinkHint"></p>
@@ -499,6 +483,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715r" type="module"></script>
+    <script src="./app.js?v=20260715t" type="module"></script>
   </body>
 </html>

@@ -227,7 +227,7 @@ async function attachCrisisIfNeeded(
     store.pushCoachMessage(
       user.userId,
       "assistant",
-      `⚠️ Кризисная поддержка\n\n${help.text}`
+      ` Кризисная поддержка\n\n${help.text}`
     );
 
     payload.crisis = true;
@@ -402,7 +402,7 @@ export function createApiRouter(): Router {
         store.pushCoachMessage(
           updated.userId,
           "assistant",
-          `🪞 Разбор чувств\n\n${reflection.text}`
+          ` Разбор чувств\n\n${reflection.text}`
         );
 
         // Also scan reflection request context? chips only — optional crisis from history
@@ -415,7 +415,7 @@ export function createApiRouter(): Router {
           store.pushCoachMessage(
             updated.userId,
             "assistant",
-            `⚠️ Кризисная поддержка\n\n${help.text}`
+            ` Кризисная поддержка\n\n${help.text}`
           );
         }
       } catch (e) {
@@ -482,7 +482,7 @@ export function createApiRouter(): Router {
         store.pushCoachMessage(
           updated.userId,
           "assistant",
-          `🛟 Поддержка при низких показателях\n\n${help.text}`
+          ` Поддержка при низких показателях\n\n${help.text}`
         );
       } catch (e) {
         console.error("checkin autoHelp", e);
@@ -622,7 +622,7 @@ export function createApiRouter(): Router {
     store.addPractice(
       profile.userId,
       t.id,
-      `${t.emoji} ${t.title}`,
+      `${t.title}`,
       t.durationMin * 60
     );
     const user = store.getUser(profile.userId)!;
@@ -711,7 +711,7 @@ export function createApiRouter(): Router {
         store.pushCoachMessage(
           fresh.userId,
           "assistant",
-          `🛟 Поддержка при высоком стрессе\n\n${help.text}`
+          ` Поддержка при высоком стрессе\n\n${help.text}`
         );
       } catch (e) {
         console.error("stress autoHelp", e);
