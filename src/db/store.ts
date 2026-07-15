@@ -106,12 +106,22 @@ export interface UserProfile {
     at: string;
     days?: number;
   }[];
+  /** YooKassa payment ids awaiting confirmation */
+  pendingYooPayments?: {
+    paymentId: string;
+    plan: "care" | "plus";
+    days: number;
+    at: string;
+    amountRub?: number;
+  }[];
   paymentHistory?: {
-    invoiceId: number;
+    /** Crypto numeric id or YooKassa UUID */
+    invoiceId: number | string;
     plan: "care" | "plus";
     paidAt: string;
     amount?: string;
     asset?: string;
+    provider?: "crypto" | "yookassa" | "admin" | "trial";
   }[];
 }
 
@@ -656,7 +666,12 @@ export class Store {
     userId: number,
     plan: "care" | "plus",
     days = 30,
-    payment?: { invoiceId: number; amount?: string; asset?: string }
+    payment?: {
+      invoiceId: number | string;
+      amount?: string;
+      asset?: string;
+      provider?: "crypto" | "yookassa" | "admin" | "trial";
+    }
   ): UserProfile {
     const user = this.getUser(userId);
     if (!user) throw new Error("User not found");
@@ -674,22 +689,28 @@ export class Store {
     if (payment) {
       user.paymentHistory = user.paymentHistory || [];
       // prevent double-credit same invoice
-      if (!user.paymentHistory.some((p) => p.invoiceId === payment.invoiceId)) {
+      if (
+        !user.paymentHistory.some(
+          (p) => String(p.invoiceId) === String(payment.invoiceId)
+        )
+      ) {
         user.paymentHistory.unshift({
           invoiceId: payment.invoiceId,
           plan,
           paidAt: new Date().toISOString(),
           amount: payment.amount,
           asset: payment.asset,
+          provider: payment.provider,
         });
         if (user.paymentHistory.length > 50) {
           user.paymentHistory = user.paymentHistory.slice(0, 50);
         }
-      } else {
-        // already paid this invoice — just ensure plan active
       }
       user.pendingInvoices = (user.pendingInvoices || []).filter(
-        (i) => i.invoiceId !== payment.invoiceId
+        (i) => String(i.invoiceId) !== String(payment.invoiceId)
+      );
+      user.pendingYooPayments = (user.pendingYooPayments || []).filter(
+        (i) => i.paymentId !== String(payment.invoiceId)
       );
     }
     this.persist();
@@ -715,10 +736,51 @@ export class Store {
     this.persist();
   }
 
-  hasPaidInvoice(userId: number, invoiceId: number): boolean {
+  trackYooPayment(
+    userId: number,
+    paymentId: string,
+    plan: "care" | "plus",
+    days: number,
+    amountRub?: number
+  ): void {
+    const user = this.getUser(userId);
+    if (!user) return;
+    user.pendingYooPayments = user.pendingYooPayments || [];
+    user.pendingYooPayments.unshift({
+      paymentId,
+      plan,
+      days: days > 0 ? days : 30,
+      amountRub,
+      at: new Date().toISOString(),
+    });
+    user.pendingYooPayments = user.pendingYooPayments.slice(0, 20);
+    this.persist();
+  }
+
+  hasPaidInvoice(userId: number, invoiceId: number | string): boolean {
     const user = this.getUser(userId);
     if (!user?.paymentHistory) return false;
-    return user.paymentHistory.some((p) => p.invoiceId === invoiceId);
+    return user.paymentHistory.some(
+      (p) => String(p.invoiceId) === String(invoiceId)
+    );
+  }
+
+  findPendingYooPayment(
+    paymentId: string
+  ): { userId: number; plan: "care" | "plus"; days: number } | null {
+    for (const u of Object.values(this.data.users)) {
+      const pend = (u.pendingYooPayments || []).find(
+        (p) => p.paymentId === paymentId
+      );
+      if (pend) {
+        return { userId: u.userId, plan: pend.plan, days: pend.days };
+      }
+    }
+    return null;
+  }
+
+  listPendingYooForUser(userId: number) {
+    return this.getUser(userId)?.pendingYooPayments || [];
   }
 
   private shiftDay(yyyyMmDd: string, delta: number): string {

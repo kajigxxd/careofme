@@ -2,7 +2,7 @@ import "dotenv/config";
 import { Bot, webhookCallback } from "grammy";
 import type { Request, Response } from "express";
 import { registerHandlers } from "./features/handlers";
-import { applyPaidInvoice } from "./payments/activate";
+import { applyPaidInvoice, applyYooPayment } from "./payments/activate";
 import { createHttpServer, listenHttp } from "./server/http";
 import {
   resolvePort,
@@ -15,6 +15,10 @@ import {
   verifyCryptoPaySignature,
   type CryptoPayUpdate,
 } from "./payments/cryptopay";
+import {
+  isYooKassaConfigured,
+  parseYooNotification,
+} from "./payments/yookassa";
 import { store } from "./db/store";
 import { isAiConfigured } from "./ai/client";
 
@@ -140,6 +144,50 @@ function mountCryptoPayWebhook(
   console.log("💎 Crypto Pay webhook: /payments/cryptopay/webhook");
 }
 
+function mountYooKassaWebhook(
+  app: ReturnType<typeof createHttpServer>,
+) {
+  // HTTP notifications from YooKassa (no signature by default — trust HTTPS + shop)
+  // Configure URL in YooKassa cabinet: https://your-domain/payments/yookassa/webhook
+  app.post("/payments/yookassa/webhook", async (req: Request, res: Response) => {
+    try {
+      const { event, payment } = parseYooNotification(req.body);
+      if (
+        (event === "payment.succeeded" || payment?.status === "succeeded") &&
+        payment
+      ) {
+        const result = applyYooPayment({
+          paymentId: payment.id,
+          metadata: payment.metadata as Record<string, string> | undefined,
+          amount: payment.amount?.value,
+          status: payment.status,
+        });
+        console.log("YooKassa paid", payment.id, result);
+
+        if (result.ok && result.userId && !result.already) {
+          try {
+            const u = store.getUser(result.userId);
+            await bot.api.sendMessage(
+              u?.chatId || result.userId,
+              `✅ Оплата получена (ЮMoney)!\n\nТариф «${
+                result.plan === "plus" ? "Плюс" : "Забота"
+              }» активен на ${result.days || 30} дн.\nОткрой /start или приложение careofme.`
+            );
+          } catch (e) {
+            console.warn("notify user yoo pay", e);
+          }
+        }
+      }
+      // Always 200 so YooKassa stops retrying
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("yookassa webhook", e);
+      res.status(500).json({ ok: false });
+    }
+  });
+  console.log("💳 YooKassa webhook: /payments/yookassa/webhook");
+}
+
 async function main() {
   const port = resolvePort();
   const app = createHttpServer();
@@ -148,6 +196,9 @@ async function main() {
 
   if (isCryptoPayConfigured()) {
     mountCryptoPayWebhook(app);
+  }
+  if (isYooKassaConfigured()) {
+    mountYooKassaWebhook(app);
   }
 
   if (useWebhook && webappUrl) {
@@ -184,9 +235,19 @@ async function main() {
   );
   console.log(
     isCryptoPayConfigured()
-      ? "Оплата: Crypto Pay (@CryptoBot) ✓"
-      : "Оплата: CRYPTO_PAY_TOKEN не задан"
+      ? "Оплата crypto: Crypto Pay (@CryptoBot) ✓"
+      : "Оплата crypto: CRYPTO_PAY_TOKEN не задан"
   );
+  console.log(
+    isYooKassaConfigured()
+      ? "Оплата ₽: ЮKassa / ЮMoney ✓"
+      : "Оплата ₽: YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY не заданы"
+  );
+  if (isYooKassaConfigured() && webappUrl) {
+    console.log(
+      `YooKassa HTTP-уведомления (в кабинете ЮKassa):\n  ${webappUrl}/payments/yookassa/webhook`
+    );
+  }
   if (webappUrl) {
     console.log(`Mini App: ${webappUrl}`);
     if (isCryptoPayConfigured()) {

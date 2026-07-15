@@ -1,5 +1,6 @@
 import { store } from "../db/store";
 import { getInvoice, isCryptoPayConfigured } from "./cryptopay";
+import { getYooPayment, isYooKassaConfigured } from "./yookassa";
 import {
   PLAN_DURATION_DAYS,
   parseInvoicePayload,
@@ -35,6 +36,7 @@ export function applyPaidInvoice(opts: {
         invoiceId: opts.invoiceId,
         amount: opts.amount,
         asset: opts.asset,
+        provider: "crypto",
       });
     }
     return {
@@ -50,6 +52,7 @@ export function applyPaidInvoice(opts: {
     invoiceId: opts.invoiceId,
     amount: opts.amount,
     asset: opts.asset,
+    provider: "crypto",
   });
   return {
     ok: true,
@@ -57,6 +60,63 @@ export function applyPaidInvoice(opts: {
     plan: parsed.plan,
     days,
   };
+}
+
+/** Activate from successful YooKassa payment (idempotent). */
+export function applyYooPayment(opts: {
+  paymentId: string;
+  metadata?: Record<string, string>;
+  amount?: string;
+  status?: string;
+}): {
+  ok: boolean;
+  userId?: number;
+  plan?: PaidPlan;
+  days?: number;
+  already?: boolean;
+} {
+  if (opts.status && opts.status !== "succeeded") {
+    return { ok: false };
+  }
+
+  const meta = opts.metadata || {};
+  let userId = Number(meta.userId);
+  let plan = meta.plan as PaidPlan;
+  let days = Number(meta.days) || PLAN_DURATION_DAYS;
+
+  if (!userId || (plan !== "care" && plan !== "plus")) {
+    const pend = store.findPendingYooPayment(opts.paymentId);
+    if (!pend) {
+      console.warn("applyYooPayment: bad metadata", opts.paymentId, meta);
+      return { ok: false };
+    }
+    userId = pend.userId;
+    plan = pend.plan;
+    days = pend.days;
+  }
+
+  if (!store.getUser(userId)) {
+    store.getOrCreateUser({ userId, chatId: userId });
+  }
+
+  if (store.hasPaidInvoice(userId, opts.paymentId)) {
+    return {
+      ok: true,
+      userId,
+      plan,
+      days,
+      already: true,
+    };
+  }
+
+  store.activatePlan(userId, plan, days, {
+    invoiceId: opts.paymentId,
+    amount: opts.amount,
+    asset: "RUB",
+    provider: "yookassa",
+  });
+
+  return { ok: true, userId, plan, days };
 }
 
 /** Check specific invoice or all pending for user. */
@@ -124,6 +184,29 @@ export async function checkPendingPayments(
       }
     } catch (e) {
       console.warn("check invoice", id, e);
+    }
+  }
+
+  // Also poll YooKassa pending payments
+  if (isYooKassaConfigured()) {
+    const yooPending = store.listPendingYooForUser(userId);
+    for (const pend of yooPending) {
+      try {
+        if (store.hasPaidInvoice(userId, pend.paymentId)) {
+          return store.isPremium(store.getUser(userId)!);
+        }
+        const pay = await getYooPayment(pend.paymentId);
+        if (!pay || pay.status !== "succeeded") continue;
+        const result = applyYooPayment({
+          paymentId: pay.id,
+          metadata: pay.metadata as Record<string, string> | undefined,
+          amount: pay.amount?.value,
+          status: pay.status,
+        });
+        if (result.ok) return true;
+      } catch (e) {
+        console.warn("check yoo payment", pend.paymentId, e);
+      }
     }
   }
 

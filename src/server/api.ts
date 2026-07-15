@@ -39,6 +39,10 @@ import {
   isCryptoPayConfigured,
 } from "../payments/cryptopay";
 import {
+  createYooPayment,
+  isYooKassaConfigured,
+} from "../payments/yookassa";
+import {
   planPriceUsdt,
   planPriceRub,
   planCatalog,
@@ -336,6 +340,11 @@ export function createApiRouter(): Router {
       stressSources: STRESS_SOURCES,
       aiConfigured: isAiConfigured(),
       cryptoPayConfigured: isCryptoPayConfigured(),
+      yooKassaConfigured: isYooKassaConfigured(),
+      payments: {
+        crypto: isCryptoPayConfigured(),
+        yoomoney: isYooKassaConfigured(),
+      },
     });
   });
 
@@ -854,7 +863,85 @@ export function createApiRouter(): Router {
       });
     }
 
-    if (!isCryptoPayConfigured()) {
+    // method: "yoomoney" | "crypto" | auto
+    const methodRaw = String(req.body?.method || "auto").toLowerCase();
+    const wantYoo =
+      methodRaw === "yoomoney" ||
+      methodRaw === "yookassa" ||
+      methodRaw === "rub" ||
+      methodRaw === "fiat";
+    const wantCrypto =
+      methodRaw === "crypto" || methodRaw === "usdt" || methodRaw === "cryptobot";
+
+    const yooOk = isYooKassaConfigured();
+    const cryptoOk = isCryptoPayConfigured();
+
+    if (!yooOk && !cryptoOk) {
+      return res.status(503).json({
+        error: "payments_not_configured",
+        message: "Не настроена ни ЮMoney, ни Crypto Pay",
+      });
+    }
+
+    // Prefer YooMoney (RUB) when available unless crypto forced
+    const useYoo =
+      (wantYoo && yooOk) ||
+      (!wantCrypto && yooOk) ||
+      (methodRaw === "auto" && yooOk && !cryptoOk) ||
+      (methodRaw === "auto" && yooOk);
+
+    // If both configured and auto — still prefer yoomoney for RUB UX
+    const method: "yoomoney" | "crypto" =
+      useYoo && yooOk ? "yoomoney" : cryptoOk ? "crypto" : "yoomoney";
+
+    if (method === "yoomoney") {
+      if (!yooOk) {
+        return res.status(503).json({
+          error: "yoomoney_not_configured",
+          message: "ЮMoney/ЮKassa не настроена (YOOKASSA_SHOP_ID / SECRET_KEY)",
+        });
+      }
+      try {
+        const { payment, payUrl, amountRub, days: d } =
+          await createYooPayment({
+            userId: profile.userId,
+            plan: plan as PaidPlan,
+            period,
+          });
+        store.trackYooPayment(
+          profile.userId,
+          payment.id,
+          plan as PaidPlan,
+          d,
+          amountRub
+        );
+        return res.json({
+          ok: true,
+          payment: "yoomoney",
+          method: "yoomoney",
+          paymentId: payment.id,
+          invoiceId: payment.id,
+          payUrl,
+          amountRub,
+          currency: "RUB",
+          plan,
+          period,
+          days: d,
+          periodLabel: PLAN_PERIODS[period].label,
+        });
+      } catch (e) {
+        console.error("createYooPayment", e);
+        // Fallback to crypto if available
+        if (!cryptoOk) {
+          return res.status(502).json({
+            error: "invoice_failed",
+            message: e instanceof Error ? e.message : "yookassa_failed",
+          });
+        }
+      }
+    }
+
+    if (!cryptoOk) {
       return res.status(503).json({
         error: "payments_not_configured",
         message: "CRYPTO_PAY_TOKEN не задан",
@@ -881,6 +968,7 @@ export function createApiRouter(): Router {
       return res.json({
         ok: true,
         payment: "crypto",
+        method: "crypto",
         invoiceId: inv.invoice_id,
         payUrl,
         miniAppPayUrl: inv.mini_app_invoice_url,
@@ -904,9 +992,35 @@ export function createApiRouter(): Router {
 
   router.post("/plan/check", async (req, res) => {
     const profile = (req as any).profile;
-    const invoiceId = Number(req.body?.invoiceId) || undefined;
+    const invoiceId = req.body?.invoiceId;
+    const paymentId =
+      typeof req.body?.paymentId === "string"
+        ? req.body.paymentId
+        : typeof invoiceId === "string"
+          ? invoiceId
+          : undefined;
+    const cryptoId =
+      typeof invoiceId === "number"
+        ? invoiceId
+        : Number(invoiceId) > 0
+          ? Number(invoiceId)
+          : undefined;
     try {
-      await checkPendingPayments(profile.userId, invoiceId);
+      await checkPendingPayments(profile.userId, cryptoId);
+      // Explicit Yoo check
+      if (paymentId && isYooKassaConfigured()) {
+        const { getYooPayment } = await import("../payments/yookassa");
+        const { applyYooPayment } = await import("../payments/activate");
+        const pay = await getYooPayment(paymentId);
+        if (pay?.status === "succeeded") {
+          applyYooPayment({
+            paymentId: pay.id,
+            metadata: pay.metadata as Record<string, string> | undefined,
+            amount: pay.amount?.value,
+            status: pay.status,
+          });
+        }
+      }
     } catch (e) {
       console.warn("plan/check", e);
     }

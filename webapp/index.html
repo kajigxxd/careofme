@@ -13,7 +13,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715n" />
+    <link rel="stylesheet" href="./styles.css?v=20260715o" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -367,11 +367,11 @@
             <div class="crypto-title">Пробный период и оплата</div>
             <p class="muted">
               Можно попробовать <b>Заботу</b> и <b>Плюс</b> по <b>3 дня</b> бесплатно
-              (1 раз на тариф). Дальше — <b>@CryptoBot</b>, счёт в <b>USDT</b>
-              (курс <b>81 ₽</b>).
+              (1 раз на тариф). Оплата: <b>₽ ЮMoney / карта</b> или
+              <b>USDT</b> через Crypto Bot (курс <b>81 ₽</b>).
             </p>
             <div class="crypto-badges">
-              <span>3 дня free</span><span>USDT</span><span>курс 81</span>
+              <span>3 дня free</span><span>₽ ЮMoney</span><span>USDT</span>
             </div>
             <div class="pay-row" style="margin-top:12px">
               <button class="btn primary block" type="button" data-trial-plan="care">
@@ -433,6 +433,24 @@
       </div>
     </div>
 
+    <div id="methodModal" class="pay-modal hidden" role="dialog" aria-modal="true">
+      <div class="pay-modal-card">
+        <h2>Способ оплаты</h2>
+        <p class="muted" id="methodModalHint">Карта / ЮMoney в рублях или крипта</p>
+        <div class="period-options">
+          <button type="button" class="period-opt" id="methodYoo" data-pay-method="yoomoney">
+            <span>₽ ЮMoney / карта<span class="po-sub">рубли · ЮKassa</span></span>
+            <span class="po-price">RUB</span>
+          </button>
+          <button type="button" class="period-opt" id="methodCrypto" data-pay-method="crypto">
+            <span>💎 Crypto Bot<span class="po-sub">USDT · курс 81 ₽</span></span>
+            <span class="po-price">USDT</span>
+          </button>
+        </div>
+        <button class="linkish" type="button" id="methodModalClose">Отмена</button>
+      </div>
+    </div>
+
     <div id="payModal" class="pay-modal hidden" role="dialog" aria-modal="true">
       <div class="pay-modal-card">
         <h2>Оплата в Crypto Bot</h2>
@@ -453,6 +471,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715n" type="module"></script>
+    <script src="./app.js?v=20260715o" type="module"></script>
   </body>
 </html>
