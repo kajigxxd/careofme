@@ -21,7 +21,13 @@
     <div id="app">
       <header class="top">
         <div class="brand">
-          <span class="logo">🌿</span>
+          <img
+            class="logo"
+            src="./assets/avatar.png"
+            width="42"
+            height="42"
+            alt="careofme"
+          />
           <div>
             <div class="brand-title">careofme</div>
             <div class="brand-sub" id="greeting">Загрузка…</div>
@@ -39,8 +45,19 @@
         <!-- HOME -->
         <section class="screen active" data-screen="home">
           <div class="hero card">
-            <p class="muted">2–3 минуты · эмоциональная безопасность</p>
-            <h1>Как ты сегодня?</h1>
+            <div class="hero-row">
+              <img
+                class="hero-avatar"
+                src="./assets/avatar.png"
+                width="56"
+                height="56"
+                alt=""
+              />
+              <div>
+                <p class="muted">2–3 минуты · эмоциональная безопасность</p>
+                <h1>Как ты сегодня?</h1>
+              </div>
+            </div>
             <button class="btn primary block" data-go="checkin">
               🌤 Начать чек-ин
             </button>

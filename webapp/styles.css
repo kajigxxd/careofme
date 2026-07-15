@@ -58,11 +58,33 @@ body {
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(145deg, #2f6b4f, #1d3d30);
-  font-size: 22px;
-  box-shadow: 0 8px 24px rgba(45, 120, 85, 0.25);
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
+  box-shadow: 0 8px 24px rgba(45, 120, 85, 0.28);
+  border: 1px solid color-mix(in srgb, var(--btn) 25%, transparent);
+  background: #1d3d30;
+}
+
+.hero-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.hero-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 10px 28px rgba(45, 120, 85, 0.28);
+  border: 1px solid color-mix(in srgb, var(--btn) 30%, transparent);
+}
+
+.hero-row h1 {
+  margin: 2px 0 0;
 }
 
 .brand-title {
