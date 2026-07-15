@@ -377,34 +377,44 @@ export function createApiRouter(): Router {
       payload
     );
 
-    const isPlus = store.isPremium(updated) && updated.plan === "plus";
-    if (isPlus && !payload.crisis) {
+    const premium = store.isPremium(updated);
+    const isPlus = premium && updated.plan === "plus";
+
+    // Low scores → individualized support for FREE and paid (not only Plus)
+    if (!payload.crisis && isBadResult({ mood, energy, stress })) {
+      payload.needsSupport = true;
+      try {
+        const help = await autoSupportOnBadResult(
+          updated,
+          "checkin",
+          { mood, energy, stress, note },
+          { freeOnly: !premium }
+        );
+        payload.autoHelp = help;
+        store.pushCoachMessage(
+          updated.userId,
+          "assistant",
+          `🛟 Поддержка при низких показателях\n\n${help.text}`
+        );
+      } catch (e) {
+        console.error("checkin autoHelp", e);
+      }
+    }
+
+    // Plus: short AI insight even when scores are not "bad"
+    if (isPlus && !payload.crisis && !payload.autoHelp) {
       try {
         const insight = await checkinInsight(updated);
         if (insight) payload.insight = insight;
       } catch (e) {
         console.error("checkin insight", e);
       }
-
-      if (isBadResult({ mood, energy, stress })) {
-        payload.needsSupport = true;
-        try {
-          const help = await autoSupportOnBadResult(updated, "checkin", {
-            mood,
-            energy,
-            stress,
-            note,
-          });
-          payload.autoHelp = help;
-          store.pushCoachMessage(
-            updated.userId,
-            "assistant",
-            `🛟 Автопомощь после чек-ина\n\n${help.text}`
-          );
-        } catch (e) {
-          console.error("checkin autoHelp", e);
-        }
-      }
+    } else if (isPlus && !payload.crisis && payload.autoHelp) {
+      // Optional short label for UI
+      payload.insight =
+        typeof payload.insight === "string"
+          ? payload.insight
+          : "Показатели низкие — ниже мягкие варианты опоры специально для тебя.";
     }
 
     res.json(payload);
@@ -492,20 +502,22 @@ export function createApiRouter(): Router {
       payload
     );
 
-    const isPlus = store.isPremium(fresh) && fresh.plan === "plus";
-    if (isPlus && !payload.crisis && isBadResult({ stress: level })) {
+    const premium = store.isPremium(fresh);
+    // High stress → support for free + paid
+    if (!payload.crisis && isBadResult({ stress: level })) {
       payload.needsSupport = true;
       try {
-        const help = await autoSupportOnBadResult(fresh, "stress", {
-          stress: level,
-          note,
-          source,
-        });
+        const help = await autoSupportOnBadResult(
+          fresh,
+          "stress",
+          { stress: level, note, source },
+          { freeOnly: !premium }
+        );
         payload.autoHelp = help;
         store.pushCoachMessage(
           fresh.userId,
           "assistant",
-          `🛟 Автопомощь после стресса\n\n${help.text}`
+          `🛟 Поддержка при высоком стрессе\n\n${help.text}`
         );
       } catch (e) {
         console.error("stress autoHelp", e);

@@ -786,7 +786,7 @@ function showSupportResult({
       const prefix = crisis || autoHelp.urgent
         ? "⚠️ Сейчас важна живая поддержка\n\n"
         : needsSupport
-          ? "🛟 Автопомощь\n\n"
+          ? "🛟 Поддержка · варианты именно для тебя\n\n"
           : "";
       helpEl.textContent = prefix + autoHelp.text;
     } else {

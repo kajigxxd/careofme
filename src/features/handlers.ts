@@ -726,26 +726,29 @@ async function finishCheckin(
     return;
   }
 
-  // Plus: automatic AI help when results are hard (no coach quota)
-  const isPlus = store.isPremium(user) && user.plan === "plus";
-  if (isPlus && isBadResult({ mood: p.mood, energy: p.energy, stress: p.stress })) {
+  // Low scores → individualized support for free + paid (no coach quota)
+  if (isBadResult({ mood: p.mood, energy: p.energy, stress: p.stress })) {
     try {
-      const help = await autoSupportOnBadResult(user, "checkin", {
-        mood: p.mood,
-        energy: p.energy,
-        stress: p.stress,
-        note,
-      });
+      const premium = store.isPremium(user);
+      const help = await autoSupportOnBadResult(
+        user,
+        "checkin",
+        {
+          mood: p.mood,
+          energy: p.energy,
+          stress: p.stress,
+          note,
+        },
+        { freeOnly: !premium }
+      );
       store.pushCoachMessage(
         user.userId,
         "assistant",
-        `🛟 Автопомощь после чек-ина\n\n${help.text}`
+        `🛟 Поддержка при низких показателях\n\n${help.text}`
       );
       await ctx.reply(
-        `🛟 *Автопомощь (Плюс)*\n\n${help.text}` +
-          (help.practiceTitle
-            ? `\n\nПрактика: ${help.practiceTitle}`
-            : ""),
+        `🛟 *Поддержка*\n\n${help.text}` +
+          (help.practiceTitle ? `\n\nПрактика: ${help.practiceTitle}` : ""),
         {
           parse_mode: "Markdown",
           reply_markup: afterCheckinKeyboard(),
@@ -880,7 +883,36 @@ async function finishStress(
   );
 
   if (note) {
-    await maybeSendCrisisHelp(ctx, fresh, note, "stress_note");
+    if (await maybeSendCrisisHelp(ctx, fresh, note, "stress_note")) {
+      return;
+    }
+  }
+
+  if (isBadResult({ stress: level })) {
+    try {
+      const premium = store.isPremium(fresh);
+      const help = await autoSupportOnBadResult(
+        fresh,
+        "stress",
+        { stress: level, note, source: srcLabel },
+        { freeOnly: !premium }
+      );
+      store.pushCoachMessage(
+        fresh.userId,
+        "assistant",
+        `🛟 Поддержка при высоком стрессе\n\n${help.text}`
+      );
+      await ctx.reply(
+        `🛟 *Поддержка*\n\n${help.text}` +
+          (help.practiceTitle ? `\n\nПрактика: ${help.practiceTitle}` : ""),
+        {
+          parse_mode: "Markdown",
+          reply_markup: afterCheckinKeyboard(),
+        }
+      );
+    } catch (e) {
+      console.error("bot stress autoHelp", e);
+    }
   }
 }
 
