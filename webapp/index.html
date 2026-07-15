@@ -300,15 +300,22 @@
       </nav>
     </div>
 
-    <div id="payModal" class="pay-modal hidden">
+    <div id="payModal" class="pay-modal hidden" role="dialog" aria-modal="true">
       <div class="pay-modal-card">
         <h2>Оплата в Crypto Bot</h2>
         <p class="muted" id="payModalText">Счёт создан. Открой Crypto Bot и подтверди платёж.</p>
-        <button class="btn primary block" type="button" id="payModalOpen">Открыть Crypto Bot</button>
+        <a
+          class="btn primary block"
+          id="payModalOpen"
+          href="#"
+          role="button"
+          style="display:block;text-align:center;text-decoration:none;box-sizing:border-box"
+        >Открыть Crypto Bot</a>
         <button class="btn ghost block" type="button" id="payModalCheck" style="margin-top:8px">
           Проверить оплату
         </button>
         <button class="linkish" type="button" id="payModalClose">Закрыть</button>
+        <p class="muted" style="font-size:0.78rem;margin-top:10px" id="payModalLinkHint"></p>
       </div>
     </div>
 

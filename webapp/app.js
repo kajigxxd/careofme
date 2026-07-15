@@ -2,14 +2,36 @@
 
 const tg = window.Telegram?.WebApp;
 if (tg) {
-  tg.ready();
-  tg.expand();
   try {
-    tg.setHeaderColor("secondary_bg_color");
-    tg.setBackgroundColor("bg_color");
-  } catch (_) {
-    /* older clients */
-  }
+    tg.ready();
+    tg.expand();
+  } catch (_) {}
+  // Soft header colors — some macOS builds crash on secondary_bg_color
+  try {
+    if (tg.setHeaderColor) tg.setHeaderColor("bg_color");
+    if (tg.setBackgroundColor) tg.setBackgroundColor("bg_color");
+  } catch (_) {}
+}
+
+/** Telegram Desktop on macOS is picky about deep-links & auto-navigation */
+function tgPlatform() {
+  return String(tg?.platform || "").toLowerCase();
+}
+function isDesktopClient() {
+  const p = tgPlatform();
+  return (
+    p === "tdesktop" ||
+    p === "macos" ||
+    p === "web" ||
+    p === "weba" ||
+    p === "webk" ||
+    /Mac|Win/i.test(navigator.platform || "")
+  );
+}
+function isMacDesktop() {
+  const p = tgPlatform();
+  const ua = `${navigator.userAgent || ""} ${navigator.platform || ""}`;
+  return p === "macos" || (p === "tdesktop" && /Mac/i.test(ua)) || (/Mac/i.test(ua) && !/iPhone|iPad|iPod|Android/i.test(ua));
 }
 
 const state = {
@@ -122,52 +144,78 @@ function go(screen) {
 }
 
 function openFeelingsEditor() {
-  const areas = state.me?.focusAreas;
-  state.focusDraft = Array.isArray(areas) && areas.length ? [...areas] : ["general"];
-  go("onboarding");
+  try {
+    const areas = state.me?.focusAreas;
+    state.focusDraft =
+      Array.isArray(areas) && areas.length ? [...areas] : ["general"];
+    go("onboarding");
+    // macOS WebView sometimes needs a second paint
+    requestAnimationFrame(() => {
+      renderOnboarding();
+      const chips = document.getElementById("focusChips");
+      if (chips) chips.scrollTop = 0;
+    });
+  } catch (err) {
+    console.error("openFeelingsEditor", err);
+    toast("Не удалось открыть список чувств");
+  }
+}
+
+function onAppClick(e) {
+  const target = e.target;
+  if (!(target instanceof Element)) return;
+
+  // Feelings editor (text node clicks → closest on parent)
+  if (target.closest("[data-action='edit-feelings'], #editFeelingsBtn")) {
+    e.preventDefault();
+    e.stopPropagation();
+    openFeelingsEditor();
+    return;
+  }
+
+  const pay = target.closest("[data-pay-plan]");
+  if (pay && !pay.disabled) {
+    e.preventDefault();
+    e.stopPropagation();
+    startCryptoPay(pay.getAttribute("data-pay-plan"));
+    return;
+  }
+
+  const freePlan = target.closest("[data-plan='free']");
+  if (freePlan && !freePlan.disabled) {
+    e.preventDefault();
+    e.stopPropagation();
+    startCryptoPay("free");
+    return;
+  }
+
+  const coach = target.closest("[data-coach]");
+  if (coach) {
+    e.preventDefault();
+    go("coach");
+    sendCoach(coach.dataset.coach);
+    return;
+  }
+
+  const nav = target.closest("[data-go]");
+  if (nav) {
+    e.preventDefault();
+    go(nav.dataset.go);
+  }
 }
 
 function bindNav() {
-  document.body.addEventListener("click", (e) => {
-    // Feelings editor
-    if (e.target.closest("[data-action='edit-feelings'], #editFeelingsBtn")) {
-      e.preventDefault();
-      e.stopPropagation();
-      openFeelingsEditor();
-      return;
+  // capture=true: more reliable on Telegram Desktop (macOS)
+  document.addEventListener("click", onAppClick, true);
+  document.addEventListener("pointerup", (e) => {
+    // Extra path for macOS trackpad / Desktop WebView
+    if (!isMacDesktop() && !isDesktopClient()) return;
+    const t = e.target;
+    if (!(t instanceof Element)) return;
+    if (t.closest("[data-action='edit-feelings'], #editFeelingsBtn, [data-pay-plan]")) {
+      // let click handler run; this helps some builds fire actions
     }
-
-    // Pay plan buttons
-    const pay = e.target.closest("[data-pay-plan]");
-    if (pay && !pay.disabled) {
-      e.preventDefault();
-      e.stopPropagation();
-      startCryptoPay(pay.getAttribute("data-pay-plan"));
-      return;
-    }
-
-    const freePlan = e.target.closest("[data-plan='free']");
-    if (freePlan && !freePlan.disabled) {
-      e.preventDefault();
-      e.stopPropagation();
-      startCryptoPay("free");
-      return;
-    }
-
-    const coach = e.target.closest("[data-coach]");
-    if (coach) {
-      e.preventDefault();
-      go("coach");
-      sendCoach(coach.dataset.coach);
-      return;
-    }
-
-    const t = e.target.closest("[data-go]");
-    if (t) {
-      e.preventDefault();
-      go(t.dataset.go);
-    }
-  });
+  }, true);
 }
 
 async function loadMe() {
@@ -591,44 +639,97 @@ async function loadStats() {
 state.lastInvoiceId = null;
 state.lastPayUrl = null;
 
+/** Convert https://t.me/CryptoBot?start=XXX → tg:// deep link (better on macOS Desktop) */
+function toTgDeepLink(url) {
+  try {
+    const u = new URL(url, "https://t.me");
+    if (!/t\.me$/i.test(u.hostname) && !/telegram\.me$/i.test(u.hostname)) {
+      return null;
+    }
+    const parts = u.pathname.replace(/^\//, "").split("/").filter(Boolean);
+    // https://t.me/CryptoBot?start=IV...
+    if (parts.length === 1 && u.searchParams.get("start")) {
+      return `tg://resolve?domain=${encodeURIComponent(parts[0])}&start=${encodeURIComponent(u.searchParams.get("start"))}`;
+    }
+    // https://t.me/CryptoBot/app?startapp=...
+    if (parts.length >= 1 && u.searchParams.get("startapp")) {
+      return `tg://resolve?domain=${encodeURIComponent(parts[0])}&startapp=${encodeURIComponent(u.searchParams.get("startapp"))}`;
+    }
+    if (parts[0]) return `tg://resolve?domain=${encodeURIComponent(parts[0])}`;
+  } catch (_) {}
+  return null;
+}
+
 function openPayUrl(url) {
   if (!url) {
     toast("Нет ссылки на оплату");
     return;
   }
-  // Prefer Telegram deep link APIs; fall back safely
+
+  const tgLink = toTgDeepLink(url);
+  const desktop = isDesktopClient() || isMacDesktop();
+
+  // 1) Official WebApp APIs
   try {
     if (typeof tg?.openTelegramLink === "function" && /t\.me\//i.test(url)) {
       tg.openTelegramLink(url);
-      return;
+      // On macOS this often no-ops — keep falling through with delay only if still here
+      if (!desktop) return;
     }
   } catch (e) {
     console.warn("openTelegramLink", e);
   }
+
+  // 2) tg:// deep link (macOS Telegram Desktop / Lite)
+  if (tgLink) {
+    try {
+      const a = document.createElement("a");
+      a.href = tgLink;
+      a.target = "_blank";
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      console.warn("tg://", e);
+    }
+    try {
+      window.location.href = tgLink;
+    } catch (_) {}
+  }
+
+  // 3) openLink / https
   try {
     if (typeof tg?.openLink === "function") {
-      tg.openLink(url);
-      return;
+      tg.openLink(url, { try_instant_view: false });
     }
   } catch (e) {
     console.warn("openLink", e);
   }
+
+  // 4) last resort
   try {
-    window.location.href = url;
-  } catch (_) {
     window.open(url, "_blank");
-  }
+  } catch (_) {}
 }
 
 function showPayModal(plan, payUrl, invoiceId) {
   state.lastInvoiceId = invoiceId;
   state.lastPayUrl = payUrl;
   const title = plan === "plus" ? "Плюс · 349 ₽" : "Забота · 199 ₽";
+  const usdtHint = plan === "plus" ? "≈ 4.31 USDT" : "≈ 2.46 USDT";
+  const macHint = isMacDesktop() || isDesktopClient()
+    ? " На Mac: обязательно нажми кнопку «Открыть Crypto Bot» (авто-переход блокируется)."
+    : "";
   $("#payModalText").textContent =
-    `Тариф «${title}» (курс 81 ₽ = 1 USDT). Открой Crypto Bot, оплати USDT и вернись — «Проверить оплату».`;
+    `Тариф «${title}» · ${usdtHint} (курс 81 ₽). Оплати в Crypto Bot, вернись и нажми «Проверить оплату».${macHint}`;
   $("#payModal").classList.remove("hidden");
   const st = $("#payStatus");
   if (st) st.textContent = `Счёт #${invoiceId} создан`;
+  // Focus primary action for keyboard / accessibility on desktop
+  setTimeout(() => {
+    document.getElementById("payModalOpen")?.focus?.();
+  }, 50);
 }
 
 function hidePayModal() {
@@ -670,8 +771,15 @@ async function startCryptoPay(plan) {
     }
     if (res.payment === "crypto" && res.payUrl) {
       showPayModal(plan, res.payUrl, res.invoiceId);
-      setTimeout(() => openPayUrl(res.payUrl), 300);
       startPayPolling(res.invoiceId, true);
+      // Desktop/macOS blocks navigation without direct user gesture —
+      // do NOT auto-open; user taps «Открыть Crypto Bot» in the modal.
+      // On mobile we can try auto-open after a short delay.
+      if (!isDesktopClient() && !isMacDesktop()) {
+        setTimeout(() => openPayUrl(res.payUrl), 200);
+      } else {
+        toast("Нажми «Открыть Crypto Bot» ниже");
+      }
       return;
     }
     toast("Не удалось создать оплату");
@@ -864,9 +972,25 @@ function wireUi() {
   on("journalRefresh", "click", () => loadJournalPrompt());
   on("journalSave", "click", () => onJournalSave());
   on("checkPayBtn", "click", () => verifyPayment(state.lastInvoiceId, false));
-  on("payModalOpen", "click", () => openPayUrl(state.lastPayUrl));
+  // Use real <a> click + openPayUrl — critical for macOS Desktop user-gesture rules
+  on("payModalOpen", "click", (ev) => {
+    ev.preventDefault();
+    const url = state.lastPayUrl;
+    const deep = url ? toTgDeepLink(url) : null;
+    const el = document.getElementById("payModalOpen");
+    if (el && url) {
+      el.setAttribute("href", deep || url);
+    }
+    openPayUrl(url);
+  });
   on("payModalCheck", "click", () => verifyPayment(state.lastInvoiceId, false));
   on("payModalClose", "click", hidePayModal);
+
+  // Also bind feelings button directly (belt + suspenders for macOS)
+  on("editFeelingsBtn", "click", (ev) => {
+    ev.preventDefault();
+    openFeelingsEditor();
+  });
 
   const form = $("#coachForm");
   if (form) {
