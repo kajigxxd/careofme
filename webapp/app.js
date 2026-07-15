@@ -11,6 +11,31 @@ if (tg) {
     if (tg.setHeaderColor) tg.setHeaderColor("bg_color");
     if (tg.setBackgroundColor) tg.setBackgroundColor("bg_color");
   } catch (_) {}
+  // Full height on modern Telegram (iOS / Android / Desktop)
+  try {
+    if (typeof tg.requestFullscreen === "function" && tg.isVersionAtLeast?.("8.0")) {
+      /* optional — skip fullscreen to avoid UX surprises */
+    }
+    if (typeof tg.disableVerticalSwipes === "function") {
+      try {
+        tg.disableVerticalSwipes();
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+// Keep layout stable when mobile keyboard opens (iOS / Android WebView)
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const onVv = () => {
+    document.documentElement.style.setProperty(
+      "--vvh",
+      `${Math.round(vv.height)}px`
+    );
+  };
+  vv.addEventListener("resize", onVv);
+  vv.addEventListener("scroll", onVv);
+  onVv();
 }
 
 /** Telegram Desktop on macOS is picky about deep-links & auto-navigation */
@@ -117,6 +142,12 @@ function apiErrorMessage(err) {
   const code = err?.data?.error || err?.message || "";
   if (err?.status === 0 || code === "network_error") {
     return "Нет сети. Проверь интернет и попробуй ещё раз";
+  }
+  if (err?.status === 429 || code === "rate_limited") {
+    return err?.data?.message || "Слишком много запросов — подожди немного";
+  }
+  if (err?.status === 408 || code === "timeout") {
+    return "Запрос слишком долгий. Попробуй ещё раз";
   }
   if (
     err?.status === 401 ||

@@ -27,10 +27,16 @@
   --card: var(--calm-card);
   --border: color-mix(in srgb, var(--calm-text) 8%, transparent);
   --radius: 20px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
   --tab-h: 64px;
-  font-family: "Manrope", system-ui, -apple-system, sans-serif;
+  --app-max: 480px;
+  font-family: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Soft dark when Telegram forces dark (still calming, not pure black) */
@@ -74,17 +80,48 @@ body {
     var(--bg);
   color: var(--text);
   min-height: 100%;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
 }
 
 body {
   overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 #app {
-  max-width: 480px;
+  max-width: var(--app-max);
   margin: 0 auto;
   min-height: 100vh;
-  padding: 14px 14px calc(var(--tab-h) + var(--safe-b) + 16px);
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  padding:
+    max(12px, var(--safe-t))
+    max(14px, var(--safe-r))
+    calc(var(--tab-h) + var(--safe-b) + 16px)
+    max(14px, var(--safe-l));
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Inputs ≥16px — no accidental zoom on iOS Safari / Telegram WebView */
+input,
+textarea,
+select,
+.input {
+  font-size: 16px;
+}
+
+button,
+.btn,
+.tab,
+.chip,
+.period-opt,
+.practice-pick,
+.seg-btn,
+.score {
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
 .top {
@@ -1052,6 +1089,105 @@ h2 {
   font-weight: 500;
   color: var(--hint);
   margin-top: 2px;
+}
+
+/* —— Device adaptations —— */
+
+/* Larger phones / small tablets */
+@media (min-width: 520px) {
+  :root {
+    --app-max: 540px;
+    --tab-h: 68px;
+  }
+}
+
+/* iPad / landscape tablets inside Telegram */
+@media (min-width: 768px) {
+  :root {
+    --app-max: 640px;
+  }
+  #app {
+    padding-top: max(16px, var(--safe-t));
+  }
+  .grid-2 {
+    gap: 12px;
+  }
+}
+
+/* Narrow / fold closed */
+@media (max-width: 360px) {
+  :root {
+    --tab-h: 58px;
+  }
+  h1 {
+    font-size: 1.25rem;
+  }
+  .brand-title {
+    font-size: 0.95rem;
+  }
+  .tab {
+    font-size: 0.62rem;
+    padding: 4px 2px;
+  }
+}
+
+/* Landscape phone: keep content usable */
+@media (max-height: 480px) and (orientation: landscape) {
+  :root {
+    --tab-h: 52px;
+  }
+  #app {
+    padding-bottom: calc(var(--tab-h) + var(--safe-b) + 10px);
+  }
+  .hero h1 {
+    font-size: 1.15rem;
+  }
+  .pay-modal {
+    align-items: center;
+  }
+  .pay-modal-card {
+    max-height: 90vh;
+    overflow: auto;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High contrast / accessibility */
+@media (prefers-contrast: more) {
+  :root {
+    --border: color-mix(in srgb, var(--calm-text) 28%, transparent);
+  }
+  .btn.primary {
+    outline: 1px solid color-mix(in srgb, var(--calm-btn-deep) 40%, transparent);
+  }
+}
+
+/* Desktop Telegram / wide WebView */
+@media (min-width: 900px) {
+  :root {
+    --app-max: 720px;
+  }
+  body {
+    background-attachment: fixed;
+  }
+}
+
+/* Keyboard open: reduce bottom padding jump where supported */
+@supports (height: 100dvh) {
+  #app {
+    min-height: 100dvh;
+  }
 }
 
 .risk-chip {

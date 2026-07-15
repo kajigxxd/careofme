@@ -52,10 +52,23 @@ import {
   type PlanPeriod,
 } from "../payments/plans";
 import { checkPendingPayments } from "../payments/activate";
+import { userRateLimit } from "./rateLimit";
 
 function getToken() {
   return process.env.BOT_TOKEN || "";
 }
+
+/** Expensive AI endpoints — per Telegram user */
+const aiUserLimit = userRateLimit({
+  windowMs: 60_000,
+  max: 12,
+  message: "Слишком много AI-запросов. Подожди минуту.",
+});
+const payUserLimit = userRateLimit({
+  windowMs: 60_000,
+  max: 8,
+  message: "Слишком много запросов на оплату.",
+});
 
 function extractBearer(req: Request): string {
   const auth = req.header("authorization") || "";
@@ -339,7 +352,7 @@ export function createApiRouter(): Router {
     });
   });
 
-  router.post("/onboarding", async (req, res) => {
+  router.post("/onboarding", aiUserLimit, async (req, res) => {
     const profile = (req as any).profile;
     const areas = (req.body?.focusAreas || []) as FocusArea[];
     const allowed = new Set<FocusArea>(ALL_FOCUS_AREAS);
@@ -688,7 +701,7 @@ export function createApiRouter(): Router {
     }
   });
 
-  router.post("/coach", async (req, res) => {
+  router.post("/coach", aiUserLimit, async (req, res) => {
     const profile = (req as any).profile;
     const text =
       typeof req.body?.text === "string" ? req.body.text.slice(0, 2000) : "";
@@ -737,7 +750,7 @@ export function createApiRouter(): Router {
     });
   });
 
-  router.get("/insight", async (req, res) => {
+  router.get("/insight", aiUserLimit, async (req, res) => {
     const profile = (req as any).profile;
     if (!store.isPremium(profile) || profile.plan !== "plus") {
       return res.status(403).json({ error: "plus_required" });
@@ -747,7 +760,7 @@ export function createApiRouter(): Router {
   });
 
   /** Plus: full feelings analysis across focus + checkins + stress + journal */
-  router.get("/analysis/feelings", async (req, res) => {
+  router.get("/analysis/feelings", aiUserLimit, async (req, res) => {
     const profile = (req as any).profile;
     if (!store.isPremium(profile) || profile.plan !== "plus") {
       return res.status(403).json({
@@ -764,7 +777,7 @@ export function createApiRouter(): Router {
     }
   });
 
-  router.post("/analysis/feelings", async (req, res) => {
+  router.post("/analysis/feelings", aiUserLimit, async (req, res) => {
     const profile = (req as any).profile;
     if (!store.isPremium(profile) || profile.plan !== "plus") {
       return res.status(403).json({
@@ -784,7 +797,7 @@ export function createApiRouter(): Router {
   });
 
   /** Start free 3-day trial for care or plus (once per plan type) */
-  router.post("/plan/trial", (req, res) => {
+  router.post("/plan/trial", payUserLimit, (req, res) => {
     const profile = (req as any).profile;
     const plan = req.body?.plan as "care" | "plus";
     if (plan !== "care" && plan !== "plus") {
@@ -817,7 +830,7 @@ export function createApiRouter(): Router {
     }
   });
 
-  router.post("/plan", async (req, res) => {
+  router.post("/plan", payUserLimit, async (req, res) => {
     const profile = (req as any).profile;
     const plan = req.body?.plan as "free" | "care" | "plus";
     if (!["free", "care", "plus"].includes(plan)) {

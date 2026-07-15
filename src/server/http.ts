@@ -1,49 +1,131 @@
-import express, { type Express, type Request, type Response } from "express";
+import express, {
+  type Express,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
 import { createApiRouter } from "./api";
+import { rateLimit } from "./rateLimit";
+import {
+  securityHeaders,
+  requestTimeout,
+  rejectHugePayload,
+} from "./security";
 
 export function createHttpServer(): Express {
   const app = express();
+  app.disable("x-powered-by");
   app.set("trust proxy", 1);
+
+  app.use(requestTimeout(60_000));
+  app.use(securityHeaders);
+  app.use(rejectHugePayload(600 * 1024));
+
+  // Global IP rate limit — blunt DDoS / scrape protection
+  app.use(
+    rateLimit({
+      windowMs: 60_000,
+      max: 180,
+      key: "global",
+      message: "Слишком много запросов с этого IP. Подожди минуту.",
+      skip: (req) =>
+        req.path === "/ping" ||
+        req.path.startsWith("/telegram/webhook/") ||
+        req.path.startsWith("/payments/cryptopay/"),
+    })
+  );
+
+  app.use(
+    "/api",
+    rateLimit({
+      windowMs: 60_000,
+      max: 90,
+      key: "api",
+      message: "Слишком много API-запросов. Подожди немного.",
+    })
+  );
+
+  app.use(
+    "/api/auth",
+    rateLimit({
+      windowMs: 60_000,
+      max: 20,
+      key: "auth",
+      message: "Слишком много попыток входа. Подожди минуту.",
+    })
+  );
+  app.use(
+    "/api/plan",
+    rateLimit({
+      windowMs: 60_000,
+      max: 15,
+      key: (req) => `plan:${req.method}`,
+      message: "Слишком много запросов к оплате.",
+    })
+  );
+  app.use(
+    "/api/coach",
+    rateLimit({
+      windowMs: 60_000,
+      max: 30,
+      key: "coach-ip",
+      message: "Слишком частые сообщения коучу.",
+    })
+  );
+
   app.use(
     cors({
       origin: true,
-      allowedHeaders: ["Content-Type", "X-Telegram-Init-Data"],
+      allowedHeaders: [
+        "Content-Type",
+        "X-Telegram-Init-Data",
+        "Authorization",
+        "X-Session-Token",
+      ],
+      maxAge: 600,
     })
   );
-  // Keep raw body for Crypto Pay signature verification
+
   app.use(
     express.json({
-      limit: "512kb",
+      limit: "256kb",
       verify: (req, _res, buf) => {
         (req as Request & { rawBody?: string }).rawBody = buf.toString("utf8");
       },
     })
   );
 
+  // Minimal health — no env fingerprints
   app.get("/health", (_req: Request, res: Response) => {
     res.json({
       ok: true,
       service: "careofme",
       ts: new Date().toISOString(),
-      hasBotToken: Boolean(process.env.BOT_TOKEN),
-      hasWebappUrl: Boolean(
-        process.env.WEBAPP_URL ||
-          process.env.RENDER_EXTERNAL_URL ||
-          process.env.RAILWAY_PUBLIC_DOMAIN ||
-          process.env.FLY_APP_NAME
-      ),
-      hasXai: Boolean(process.env.XAI_API_KEY),
-      hasCryptoPay: Boolean(process.env.CRYPTO_PAY_TOKEN),
       uptimeSec: Math.floor(process.uptime()),
     });
   });
 
-  // Keep-alive for free tiers that sleep
   app.get("/ping", (_req, res) => {
     res.type("text").send("pong");
+  });
+
+  // Drop common scanner noise quickly
+  app.use((req, res, next) => {
+    const p = req.path.toLowerCase();
+    if (
+      p.includes("wp-admin") ||
+      p.includes("wp-login") ||
+      p.includes(".env") ||
+      p.includes("phpmyadmin") ||
+      p.endsWith(".php") ||
+      p.includes("xmlrpc")
+    ) {
+      return res.status(404).end();
+    }
+    next();
   });
 
   app.use("/api", createApiRouter());
@@ -63,7 +145,6 @@ export function createHttpServer(): Express {
     console.log("📂 Mini App static:", webRoot);
   }
 
-  // No long browser/WebView cache — Telegram Desktop on macOS keeps stale app.js for hours
   app.use(
     express.static(webRoot, {
       extensions: ["html"],
@@ -71,6 +152,7 @@ export function createHttpServer(): Express {
       etag: true,
       lastModified: true,
       setHeaders(res, filePath) {
+        res.setHeader("X-Content-Type-Options", "nosniff");
         if (/\.(js|css|html)$/i.test(filePath)) {
           res.setHeader(
             "Cache-Control",
@@ -79,7 +161,7 @@ export function createHttpServer(): Express {
           res.setHeader("Pragma", "no-cache");
           res.setHeader("Expires", "0");
         } else if (/\.(png|jpg|jpeg|webp|svg|ico)$/i.test(filePath)) {
-          res.setHeader("Cache-Control", "public, max-age=300");
+          res.setHeader("Cache-Control", "public, max-age=600");
         }
       },
     })
@@ -112,6 +194,18 @@ export function createHttpServer(): Express {
     res.sendFile(index);
   });
 
+  app.use((_req, res) => {
+    res.status(404).json({ error: "not_found" });
+  });
+
+  app.use(
+    (err: Error, _req: Request, res: Response, _next: NextFunction) => {
+      console.error("http error", err?.message || err);
+      if (res.headersSent) return;
+      res.status(500).json({ error: "server_error" });
+    }
+  );
+
   return app;
 }
 
@@ -121,6 +215,10 @@ export function listenHttp(app: Express, port: number): Promise<void> {
       console.log(`🌐 HTTP :${port}`);
       resolve();
     });
+    server.maxHeadersCount = 50;
+    server.headersTimeout = 30_000;
+    server.requestTimeout = 60_000;
+    server.keepAliveTimeout = 10_000;
     server.on("error", reject);
   });
 }
