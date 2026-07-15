@@ -59,6 +59,15 @@ export interface UserProfile {
   coachMessages: { role: "user" | "assistant"; content: string; at: string }[];
   freeCoachToday: number;
   freeCoachDate?: string;
+  /** Last crypto invoice ids for this user */
+  pendingInvoices?: { invoiceId: number; plan: "care" | "plus"; at: string }[];
+  paymentHistory?: {
+    invoiceId: number;
+    plan: "care" | "plus";
+    paidAt: string;
+    amount?: string;
+    asset?: string;
+  }[];
 }
 
 interface StoreData {
@@ -144,6 +153,8 @@ export class Store {
         stress: [],
         coachMessages: [],
         freeCoachToday: 0,
+        pendingInvoices: [],
+        paymentHistory: [],
       };
       this.data.users[key] = user;
       this.persist();
@@ -308,6 +319,71 @@ export class Store {
     }
     user.freeCoachToday += 1;
     this.persist();
+  }
+
+  activatePlan(
+    userId: number,
+    plan: "care" | "plus",
+    days = 30,
+    payment?: { invoiceId: number; amount?: string; asset?: string }
+  ): UserProfile {
+    const user = this.getUser(userId);
+    if (!user) throw new Error("User not found");
+    const until = new Date();
+    // extend if already premium same or higher
+    const base =
+      user.premiumUntil && new Date(user.premiumUntil) > until
+        ? new Date(user.premiumUntil)
+        : until;
+    base.setDate(base.getDate() + days);
+    user.plan = plan;
+    user.premiumUntil = base.toISOString();
+    if (payment) {
+      user.paymentHistory = user.paymentHistory || [];
+      // prevent double-credit same invoice
+      if (!user.paymentHistory.some((p) => p.invoiceId === payment.invoiceId)) {
+        user.paymentHistory.unshift({
+          invoiceId: payment.invoiceId,
+          plan,
+          paidAt: new Date().toISOString(),
+          amount: payment.amount,
+          asset: payment.asset,
+        });
+        if (user.paymentHistory.length > 50) {
+          user.paymentHistory = user.paymentHistory.slice(0, 50);
+        }
+      } else {
+        // already paid this invoice — just ensure plan active
+      }
+      user.pendingInvoices = (user.pendingInvoices || []).filter(
+        (i) => i.invoiceId !== payment.invoiceId
+      );
+    }
+    this.persist();
+    return user;
+  }
+
+  trackInvoice(
+    userId: number,
+    invoiceId: number,
+    plan: "care" | "plus"
+  ): void {
+    const user = this.getUser(userId);
+    if (!user) return;
+    user.pendingInvoices = user.pendingInvoices || [];
+    user.pendingInvoices.unshift({
+      invoiceId,
+      plan,
+      at: new Date().toISOString(),
+    });
+    user.pendingInvoices = user.pendingInvoices.slice(0, 20);
+    this.persist();
+  }
+
+  hasPaidInvoice(userId: number, invoiceId: number): boolean {
+    const user = this.getUser(userId);
+    if (!user?.paymentHistory) return false;
+    return user.paymentHistory.some((p) => p.invoiceId === invoiceId);
   }
 
   private shiftDay(yyyyMmDd: string, delta: number): string {

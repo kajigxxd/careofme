@@ -13,8 +13,15 @@ export function createHttpServer(): Express {
       allowedHeaders: ["Content-Type", "X-Telegram-Init-Data"],
     })
   );
-  // raw body not needed; json for API + webhook
-  app.use(express.json({ limit: "512kb" }));
+  // Keep raw body for Crypto Pay signature verification
+  app.use(
+    express.json({
+      limit: "512kb",
+      verify: (req, _res, buf) => {
+        (req as Request & { rawBody?: string }).rawBody = buf.toString("utf8");
+      },
+    })
+  );
 
   app.get("/health", (_req: Request, res: Response) => {
     res.json({
@@ -28,6 +35,8 @@ export function createHttpServer(): Express {
           process.env.RAILWAY_PUBLIC_DOMAIN ||
           process.env.FLY_APP_NAME
       ),
+      hasXai: Boolean(process.env.XAI_API_KEY),
+      hasCryptoPay: Boolean(process.env.CRYPTO_PAY_TOKEN),
       uptimeSec: Math.floor(process.uptime()),
     });
   });

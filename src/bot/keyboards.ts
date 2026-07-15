@@ -124,10 +124,27 @@ export function plansKeyboard() {
     .text("« В меню", "nav:home");
 }
 
-export function confirmPlanKeyboard(plan: "care" | "plus") {
+export function confirmPlanKeyboard(plan: "care" | "plus", payUrl?: string) {
+  const kb = new InlineKeyboard();
+  if (payUrl) {
+    kb.url("💎 Оплатить криптой", payUrl).row();
+    kb.text("🔄 Проверить оплату", `pay_check:${plan}`).row();
+  } else if (process.env.ALLOW_DEMO_PAY === "1") {
+    kb.text("✅ Активировать (демо)", `plan_activate:${plan}`).row();
+  } else {
+    kb.text("⚙️ Оплата скоро", "nav:premium").row();
+  }
+  kb.text("Отмена", "nav:premium");
+  return kb;
+}
+
+export function payUrlKeyboard(url: string, plan: "care" | "plus") {
   return new InlineKeyboard()
-    .text("✅ Активировать (демо)", `plan_activate:${plan}`)
-    .text("Отмена", "nav:premium");
+    .url("💎 Открыть Crypto Bot", url)
+    .row()
+    .text("🔄 Я оплатил(а)", `pay_check:${plan}`)
+    .row()
+    .text("« Назад", "nav:premium");
 }
 
 export function allPracticesList(premium: boolean) {

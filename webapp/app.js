@@ -479,16 +479,31 @@ async function sendCoach(text) {
   if (!text?.trim()) return;
   appendBubble(text, "me");
   $("#coachInput").value = "";
+  appendBubble("…", "bot");
+  const chat = $("#chat");
+  const pending = chat.lastElementChild;
   try {
     const res = await api("/coach", { method: "POST", body: { text } });
-    appendBubble(res.reply, "bot");
+    if (pending) pending.textContent = res.reply;
+    else appendBubble(res.reply, "bot");
     if (state.me) {
-      state.me.coachQuota = { remaining: res.remaining, limit: res.limit, ok: res.remaining > 0 };
+      state.me.coachQuota = {
+        remaining: res.remaining,
+        limit: res.limit,
+        ok: res.remaining > 0,
+      };
       renderCoachMeta();
     }
+    if (res.usedFallback === false) {
+      /* live AI */
+    }
   } catch (e) {
+    if (pending) pending.remove();
     if (e.status === 429) {
-      appendBubble("Лимит на сегодня. Завтра обновится — или открой подписку 💎", "bot");
+      appendBubble(
+        "Лимит на сегодня. Завтра обновится — или подписка 💎 (крипта через Crypto Bot).",
+        "bot"
+      );
       toast("Лимит коуча");
     } else {
       appendBubble("Сейчас не удалось ответить. Попробуй ещё раз.", "bot");
@@ -547,32 +562,81 @@ function renderPlans() {
     return;
   }
   const current = state.me.plan || "free";
-  $("#plans").innerHTML = Object.values(plans)
-    .map((p) => {
-      const active = current === p.id;
-      return `
+  const cryptoOk = state.me.cryptoPayConfigured;
+  const payNote = cryptoOk
+    ? `<p class="muted">Оплата криптой через Crypto Bot: USDT, TON, BTC, ETH… (сумма в ₽)</p>`
+    : `<p class="muted">Крипто-оплата настраивается. Демо — если разрешено сервером.</p>`;
+
+  $("#plans").innerHTML =
+    payNote +
+    Object.values(plans)
+      .map((p) => {
+        const active = current === p.id && (p.id === "free" || state.me.premium);
+        const label =
+          p.id === "free"
+            ? active
+              ? "Активен"
+              : "Перейти на free"
+            : cryptoOk
+              ? `💎 Оплатить ${p.price}`
+              : "Активировать";
+        return `
       <div class="plan">
         <h3>${p.title}${active ? " · сейчас" : ""}</h3>
         <div class="price">${p.price}</div>
         <ul>${p.perks.map((x) => `<li>${x}</li>`).join("")}</ul>
         <button class="btn ${active ? "ghost" : "primary"} block" data-plan="${p.id}" ${
-          active ? "disabled" : ""
+          active && p.id !== "free" ? "disabled" : ""
         }>
-          ${active ? "Активен" : p.id === "free" ? "Перейти на free" : "Активировать (демо 30 дн.)"}
+          ${active && p.id !== "free" ? "Активен" : label}
         </button>
       </div>`;
-    })
-    .join("");
+      })
+      .join("");
 
   $all("[data-plan]").forEach((btn) => {
     btn.onclick = async () => {
       try {
-        await api("/plan", { method: "POST", body: { plan: btn.dataset.plan } });
-        toast("Тариф обновлён");
+        const res = await api("/plan", {
+          method: "POST",
+          body: { plan: btn.dataset.plan },
+        });
+        if (res.payment === "crypto" && res.payUrl) {
+          toast("Открываю Crypto Bot…");
+          if (tg?.openTelegramLink) {
+            tg.openTelegramLink(res.payUrl);
+          } else if (tg?.openLink) {
+            tg.openLink(res.payUrl);
+          } else {
+            window.open(res.payUrl, "_blank");
+          }
+          // poll a few times
+          let n = 0;
+          const t = setInterval(async () => {
+            n++;
+            try {
+              const st = await api("/plan/check", {
+                method: "POST",
+                body: { invoiceId: res.invoiceId },
+              });
+              if (st.premium) {
+                clearInterval(t);
+                toast("Оплата прошла ✨");
+                await loadMe();
+                renderPlans();
+              }
+            } catch (_) {}
+            if (n > 20) clearInterval(t);
+          }, 4000);
+          return;
+        }
+        toast(res.payment === "demo" ? "Демо-тариф активен" : "Тариф обновлён");
         await loadMe();
         renderPlans();
-      } catch {
-        toast("Ошибка");
+      } catch (e) {
+        if (e.data?.error === "payments_not_configured") {
+          toast("Оплата не настроена (CRYPTO_PAY_TOKEN)");
+        } else toast("Ошибка оплаты");
       }
     };
   });

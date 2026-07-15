@@ -13,7 +13,14 @@ import {
   STRESS_SOURCES,
   DISCLAIMER,
 } from "../data/prompts";
-import { coachReply, weeklyInsight } from "../ai/client";
+import { coachReply, weeklyInsight, isAiConfigured } from "../ai/client";
+import {
+  createPlanInvoice,
+  getInvoice,
+  isCryptoPayConfigured,
+} from "../payments/cryptopay";
+import { PLAN_DURATION_DAYS, type PaidPlan } from "../payments/plans";
+import { checkPendingPayments } from "../payments/activate";
 
 function getToken() {
   return process.env.BOT_TOKEN || "";
@@ -88,6 +95,8 @@ export function createApiRouter(): Router {
       focusLabels: FOCUS_LABELS,
       plans: PLANS,
       stressSources: STRESS_SOURCES,
+      aiConfigured: isAiConfigured(),
+      cryptoPayConfigured: isCryptoPayConfigured(),
     });
   });
 
@@ -270,7 +279,7 @@ export function createApiRouter(): Router {
     res.json({ text });
   });
 
-  router.post("/plan", (req, res) => {
+  router.post("/plan", async (req, res) => {
     const profile = (req as any).profile;
     const plan = req.body?.plan as "free" | "care" | "plus";
     if (!["free", "care", "plus"].includes(plan)) {
@@ -281,19 +290,90 @@ export function createApiRouter(): Router {
         plan: "free",
         premiumUntil: undefined,
       });
-    } else {
-      const until = new Date();
-      until.setDate(until.getDate() + 30);
-      store.updateUser(profile.userId, {
-        plan,
-        premiumUntil: until.toISOString(),
+      const updated = store.getUser(profile.userId)!;
+      return res.json({
+        ok: true,
+        plan: updated.plan,
+        premium: false,
+        premiumUntil: undefined,
       });
+    }
+
+    // Paid plans: create Crypto Pay invoice (preferred)
+    if (isCryptoPayConfigured()) {
+      try {
+        const inv = await createPlanInvoice({
+          userId: profile.userId,
+          plan: plan as PaidPlan,
+          botUsername: "careofme_bot",
+        });
+        store.trackInvoice(profile.userId, inv.invoice_id, plan as PaidPlan);
+        return res.json({
+          ok: true,
+          payment: "crypto",
+          invoiceId: inv.invoice_id,
+          payUrl:
+            inv.mini_app_invoice_url ||
+            inv.bot_invoice_url ||
+            inv.pay_url,
+          amountRub: PLANS[plan].priceRub,
+          plan,
+        });
+      } catch (e) {
+        console.error(e);
+        return res.status(502).json({ error: "invoice_failed" });
+      }
+    }
+
+    // Demo only when allowed
+    if (process.env.ALLOW_DEMO_PAY === "1") {
+      const updated = store.activatePlan(
+        profile.userId,
+        plan as PaidPlan,
+        PLAN_DURATION_DAYS
+      );
+      return res.json({
+        ok: true,
+        payment: "demo",
+        plan: updated.plan,
+        premium: store.isPremium(updated),
+        premiumUntil: updated.premiumUntil,
+      });
+    }
+
+    return res.status(503).json({
+      error: "payments_not_configured",
+      message: "Задайте CRYPTO_PAY_TOKEN (@CryptoBot → Crypto Pay)",
+    });
+  });
+
+  router.post("/plan/check", async (req, res) => {
+    const profile = (req as any).profile;
+    const invoiceId = Number(req.body?.invoiceId);
+    if (invoiceId) {
+      try {
+        const inv = await getInvoice(invoiceId);
+        if (inv?.status === "paid") {
+          const { parseInvoicePayload } = await import("../payments/plans");
+          const parsed = parseInvoicePayload(inv.payload);
+          if (parsed && parsed.userId === profile.userId) {
+            store.activatePlan(profile.userId, parsed.plan, PLAN_DURATION_DAYS, {
+              invoiceId,
+              amount: inv.amount,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    } else {
+      await checkPendingPayments(profile.userId);
     }
     const updated = store.getUser(profile.userId)!;
     res.json({
       ok: true,
-      plan: updated.plan,
       premium: store.isPremium(updated),
+      plan: updated.plan,
       premiumUntil: updated.premiumUntil,
     });
   });
