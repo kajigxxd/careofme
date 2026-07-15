@@ -2,17 +2,23 @@ import OpenAI from "openai";
 import type { UserProfile } from "../db/store";
 import {
   buildCoachSystemPrompt,
-  CRISIS_HINT,
   FOCUS_LABELS,
 } from "../data/prompts";
 import { recommendPractice, getPractice } from "../data/practices";
+import {
+  looksLikeCrisis,
+  crisisAutoHelp,
+  scanTextForCrisis,
+  scanUserForCrisis,
+} from "./crisis";
 
-const CRISIS_PATTERNS =
-  /суицид|самоубий|убить себя|не хочу жить|хочу умереть|покончить|самоповреж|резать себя|прыгнуть с|нет смысла жить|пропадаю|нет сил жить/i;
-
-export function looksLikeCrisis(text: string): boolean {
-  return CRISIS_PATTERNS.test(text);
-}
+export {
+  looksLikeCrisis,
+  crisisAutoHelp,
+  scanTextForCrisis,
+  scanUserForCrisis,
+} from "./crisis";
+export type { CrisisScan, CrisisHelp, CrisisLevel } from "./crisis";
 
 function getClient(): OpenAI | null {
   const key = process.env.XAI_API_KEY?.trim();
@@ -124,14 +130,20 @@ export async function coachReply(
   user: UserProfile,
   userMessage: string
 ): Promise<CoachResult> {
-  if (looksLikeCrisis(userMessage)) {
+  // Always scan message + recent history for crisis signals
+  const crisis = scanUserForCrisis(user, [
+    { source: "coach_now", text: userMessage },
+  ]);
+  if (crisis.detected || looksLikeCrisis(userMessage)) {
+    const help = await crisisAutoHelp(
+      user,
+      crisis.detected ? crisis : scanTextForCrisis(userMessage, "coach_now"),
+      userMessage
+    );
     return {
-      text:
-        `${CRISIS_HINT}\n\n` +
-        "Я рядом текстом, но сейчас важнее живой контакт. " +
-        "Если можешь — напиши близкому человеку или позвони на линию доверия. " +
-        "Когда станет чуть безопаснее — можем разобрать одну маленькую опору на ближайший час.",
-      usedFallback: true,
+      text: help.text,
+      usedFallback: help.usedFallback,
+      suggestedPracticeId: help.practiceId,
     };
   }
 

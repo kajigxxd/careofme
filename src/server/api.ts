@@ -27,7 +27,11 @@ import {
   isBadResult,
   fullFeelingsAnalysis,
   autoSupportOnBadResult,
+  scanUserForCrisis,
+  crisisAutoHelp,
+  type CrisisHelp,
 } from "../ai/client";
+import type { UserProfile } from "../db/store";
 import {
   createPlanInvoice,
   invoicePayUrl,
@@ -160,6 +164,50 @@ function asScore(n: unknown): MoodScore | null {
   const v = Number(n);
   if (v >= 1 && v <= 5) return v as MoodScore;
   return null;
+}
+
+/**
+ * If notes/history show suicidal or self-harm signals — attach full auto-help
+ * for ALL users (not only Plus). Does not consume coach quota.
+ */
+async function attachCrisisIfNeeded(
+  user: UserProfile,
+  extras: { source: string; text?: string | null }[],
+  payload: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  try {
+    const scan = scanUserForCrisis(user, extras);
+    if (!scan.detected) return payload;
+
+    const context =
+      extras
+        .map((e) => e.text)
+        .filter(Boolean)
+        .join("\n")
+        .slice(0, 500) || undefined;
+
+    const help: CrisisHelp = await crisisAutoHelp(user, scan, context);
+    console.warn(
+      `crisis: user=${user.userId} level=${scan.level} sources=${scan.sources.join(",")}`
+    );
+
+    store.pushCoachMessage(
+      user.userId,
+      "assistant",
+      `⚠️ Кризисная поддержка\n\n${help.text}`
+    );
+
+    payload.crisis = true;
+    payload.crisisLevel = scan.level;
+    payload.needsSupport = true;
+    payload.autoHelp = help;
+    // Prefer crisis text as primary insight when present
+    if (!payload.insight) payload.insight = help.text;
+    return payload;
+  } catch (e) {
+    console.error("attachCrisisIfNeeded", e);
+    return payload;
+  }
 }
 
 export function createApiRouter(): Router {
@@ -313,16 +361,24 @@ export function createApiRouter(): Router {
       note,
     });
 
-    const payload: Record<string, unknown> = {
+    let payload: Record<string, unknown> = {
       ok: true,
       streak: updated.streak,
       checkin: updated.checkins[0],
       stats: store.weekStats(updated),
       needsSupport: false,
+      crisis: false,
     };
 
+    // Crisis first — for everyone, from note + history
+    payload = await attachCrisisIfNeeded(
+      updated,
+      [{ source: "checkin_note", text: note }],
+      payload
+    );
+
     const isPlus = store.isPremium(updated) && updated.plan === "plus";
-    if (isPlus) {
+    if (isPlus && !payload.crisis) {
       try {
         const insight = await checkinInsight(updated);
         if (insight) payload.insight = insight;
@@ -340,7 +396,6 @@ export function createApiRouter(): Router {
             note,
           });
           payload.autoHelp = help;
-          // Save into coach history without consuming daily quota (Plus perk)
           store.pushCoachMessage(
             updated.userId,
             "assistant",
@@ -424,14 +479,21 @@ export function createApiRouter(): Router {
         : undefined;
     store.addStress(profile.userId, level, source, note);
     const fresh = store.getUser(profile.userId)!;
-    const payload: Record<string, unknown> = {
+    let payload: Record<string, unknown> = {
       ok: true,
       stats: store.weekStats(fresh),
       needsSupport: false,
+      crisis: false,
     };
 
+    payload = await attachCrisisIfNeeded(
+      fresh,
+      [{ source: "stress_note", text: note }],
+      payload
+    );
+
     const isPlus = store.isPremium(fresh) && fresh.plan === "plus";
-    if (isPlus && isBadResult({ stress: level })) {
+    if (isPlus && !payload.crisis && isBadResult({ stress: level })) {
       payload.needsSupport = true;
       try {
         const help = await autoSupportOnBadResult(fresh, "stress", {
@@ -471,7 +533,7 @@ export function createApiRouter(): Router {
     res.json({ entry });
   });
 
-  router.post("/journal", (req, res) => {
+  router.post("/journal", async (req, res) => {
     const profile = (req as any).profile;
     const text =
       typeof req.body?.text === "string" ? req.body.text.slice(0, 4000) : "";
@@ -485,14 +547,26 @@ export function createApiRouter(): Router {
       console.log(
         `journal: saved user=${profile.userId} id=${entry.id} len=${text.length}`
       );
-      res.json({ ok: true, entry });
+      const fresh = store.getUser(profile.userId)!;
+      let payload: Record<string, unknown> = {
+        ok: true,
+        entry,
+        crisis: false,
+        needsSupport: false,
+      };
+      payload = await attachCrisisIfNeeded(
+        fresh,
+        [{ source: "journal", text }],
+        payload
+      );
+      res.json(payload);
     } catch (err) {
       console.error("journal: save failed", err);
       res.status(500).json({ error: "save_failed", message: "Не удалось сохранить" });
     }
   });
 
-  router.patch("/journal/:id", (req, res) => {
+  router.patch("/journal/:id", async (req, res) => {
     const profile = (req as any).profile;
     const text =
       typeof req.body?.text === "string" ? req.body.text.slice(0, 4000) : undefined;
@@ -508,7 +582,21 @@ export function createApiRouter(): Router {
         text,
         prompt,
       });
-      res.json({ ok: true, entry });
+      const fresh = store.getUser(profile.userId)!;
+      let payload: Record<string, unknown> = {
+        ok: true,
+        entry,
+        crisis: false,
+        needsSupport: false,
+      };
+      if (text) {
+        payload = await attachCrisisIfNeeded(
+          fresh,
+          [{ source: "journal_edit", text }],
+          payload
+        );
+      }
+      res.json(payload);
     } catch {
       res.status(404).json({ error: "not_found" });
     }
@@ -531,8 +619,14 @@ export function createApiRouter(): Router {
       typeof req.body?.text === "string" ? req.body.text.slice(0, 2000) : "";
     if (!text.trim()) return res.status(400).json({ error: "text_required" });
 
+    // Crisis messages never blocked by daily quota
+    const preCrisis = scanUserForCrisis(profile, [
+      { source: "coach_now", text },
+    ]);
+    const isCrisis = preCrisis.detected;
+
     const quota = store.canUseCoach(profile);
-    if (!quota.ok) {
+    if (!quota.ok && !isCrisis) {
       return res.status(429).json({
         error: "quota_exceeded",
         limit: quota.limit,
@@ -541,15 +635,19 @@ export function createApiRouter(): Router {
     }
 
     store.pushCoachMessage(profile.userId, "user", text);
-    store.consumeCoach(profile.userId);
+    if (!isCrisis) store.consumeCoach(profile.userId);
     const fresh = store.getUser(profile.userId)!;
-    const { text: reply, usedFallback } = await coachReply(fresh, text);
+    const { text: reply, usedFallback, suggestedPracticeId } =
+      await coachReply(fresh, text);
     store.pushCoachMessage(profile.userId, "assistant", reply);
     const after = store.getUser(profile.userId)!;
 
     res.json({
       reply,
       usedFallback,
+      crisis: isCrisis,
+      crisisLevel: isCrisis ? preCrisis.level : "none",
+      suggestedPracticeId,
       remaining: store.canUseCoach(after).remaining,
       limit: store.canUseCoach(after).limit,
     });

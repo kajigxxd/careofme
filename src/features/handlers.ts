@@ -23,6 +23,9 @@ import {
   isBadResult,
   autoSupportOnBadResult,
   fullFeelingsAnalysis,
+  scanUserForCrisis,
+  crisisAutoHelp,
+  looksLikeCrisis,
 } from "../ai/client";
 import {
   mainMenuKeyboard,
@@ -573,8 +576,13 @@ export function registerHandlers(bot: Bot) {
 
     if (session.flow === "journal_write") {
       const prompt = session.journalPrompt || "Свободная запись";
-      store.addJournal(user.userId, prompt, text.slice(0, 4000));
+      const body = text.slice(0, 4000);
+      store.addJournal(user.userId, prompt, body);
       resetSession(user.userId);
+      const fresh = store.getUser(user.userId)!;
+      if (await maybeSendCrisisHelp(ctx, fresh, body, "journal")) {
+        return;
+      }
       await ctx.reply(
         "Записал в дневник. Это остаётся у тебя в боте — никто «не оценивает».\n\n" +
           "Если всплыло что-то острое — можно сразу к AI-коучу или к дыханию.",
@@ -588,6 +596,14 @@ export function registerHandlers(bot: Bot) {
       return;
     }
 
+    // Free-text outside flows: still scan for crisis
+    if (looksLikeCrisis(text) || scanUserForCrisis(user, [{ source: "chat", text }]).detected) {
+      const fresh = store.getUser(user.userId)!;
+      if (await maybeSendCrisisHelp(ctx, fresh, text, "chat")) {
+        return;
+      }
+    }
+
     // Default: gentle nudge
     await ctx.reply(
       "Я лучше всего работаю через меню 👇\n" +
@@ -595,6 +611,47 @@ export function registerHandlers(bot: Bot) {
       { reply_markup: mainMenuKeyboard() }
     );
   });
+}
+
+/** Full crisis package in bot — for all users, no quota */
+async function maybeSendCrisisHelp(
+  ctx: Context,
+  user: { userId: number; firstName?: string; focusAreas: FocusArea[] } | undefined | null,
+  text: string,
+  source: string
+): Promise<boolean> {
+  if (!user) return false;
+  const full = store.getUser(user.userId);
+  if (!full) return false;
+  const scan = scanUserForCrisis(full, [{ source, text }]);
+  if (!scan.detected && !looksLikeCrisis(text)) return false;
+  try {
+    await ctx.replyWithChatAction("typing");
+    const help = await crisisAutoHelp(
+      full,
+      scan.detected
+        ? scan
+        : { detected: true, level: "crisis", matches: [], sources: [source] },
+      text
+    );
+    store.pushCoachMessage(
+      full.userId,
+      "assistant",
+      `⚠️ Кризисная поддержка\n\n${help.text}`
+    );
+    await ctx.reply(help.text, {
+      reply_markup: afterCheckinKeyboard(),
+    });
+    return true;
+  } catch (e) {
+    console.error("maybeSendCrisisHelp", e);
+    await ctx.reply(
+      `${CRISIS_HINT}\n\n` +
+        "Если совсем тяжело — позвони сейчас. Я рядом текстом, но живой контакт важнее.",
+      { reply_markup: mainMenuKeyboard() }
+    );
+    return true;
+  }
 }
 
 async function startCheckin(ctx: Context) {
@@ -663,6 +720,11 @@ async function finishCheckin(
       reply_markup: afterCheckinKeyboard(),
     }
   );
+
+  // Crisis from check-in note / history — everyone
+  if (await maybeSendCrisisHelp(ctx, user, note || "", "checkin_note")) {
+    return;
+  }
 
   // Plus: automatic AI help when results are hard (no coach quota)
   const isPlus = store.isPremium(user) && user.plan === "plus";
@@ -800,6 +862,7 @@ async function finishStress(
   const srcLabel = STRESS_SOURCES.find((s) => s.id === srcId)?.label;
   store.addStress(userId, level, srcLabel, note);
   resetSession(userId);
+  const fresh = store.getUser(userId)!;
 
   const tip =
     level >= 4
@@ -815,6 +878,10 @@ async function finishStress(
       reply_markup: afterCheckinKeyboard(),
     }
   );
+
+  if (note) {
+    await maybeSendCrisisHelp(ctx, fresh, note, "stress_note");
+  }
 }
 
 async function openCoach(ctx: Context) {
@@ -837,12 +904,16 @@ async function handleCoachMessage(
   text: string
 ) {
   let user = store.getUser(userId)!;
+  const crisis = scanUserForCrisis(user, [{ source: "coach_now", text }]);
+  const isCrisis = crisis.detected || looksLikeCrisis(text);
+
   const quota = store.canUseCoach(user);
-  if (!quota.ok) {
+  if (!quota.ok && !isCrisis) {
     await ctx.reply(
       `Лимит AI-коуча на сегодня исчерпан (${quota.limit}).\n\n` +
         `Завтра обновится — или открой подписку: 20–50 сообщений/день от 199 ₽.\n` +
-        `А пока доступны чек-ин, дневник и практики.`,
+        `А пока доступны чек-ин, дневник и практики.\n\n` +
+        `${CRISIS_HINT}`,
       { reply_markup: plansKeyboard() }
     );
     return;
@@ -850,7 +921,7 @@ async function handleCoachMessage(
 
   await ctx.replyWithChatAction("typing");
   store.pushCoachMessage(userId, "user", text);
-  store.consumeCoach(userId);
+  if (!isCrisis) store.consumeCoach(userId);
   user = store.getUser(userId)!;
 
   const { text: reply } = await coachReply(user, text);
@@ -858,8 +929,10 @@ async function handleCoachMessage(
   setFlow(userId, "coach_chat");
 
   const left = store.canUseCoach(store.getUser(userId)!).remaining;
-  // Без Markdown — AI-текст часто ломает parse_mode
-  await ctx.reply(`${reply}\n\nОсталось сообщений сегодня: ${left}`, {
+  const footer = isCrisis
+    ? "\n\n⚠️ Это сообщение не списало лимит — сейчас важнее поддержка."
+    : `\n\nОсталось сообщений сегодня: ${left}`;
+  await ctx.reply(`${reply}${footer}`, {
     reply_markup: coachKeyboard(),
   });
 }

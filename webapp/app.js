@@ -624,13 +624,14 @@ async function submitCheckin() {
     toast(`Сохранено · серия ${res.streak} 🔥`);
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
     await loadMe();
-    if (res.insight || res.autoHelp || res.needsSupport) {
+    if (res.crisis || res.insight || res.autoHelp || res.needsSupport) {
       showSupportResult({
-        title: "Чек-ин сохранён",
+        title: res.crisis ? "Важно · поддержка" : "Чек-ин сохранён",
         meta: `Серия ${res.streak} дн. · настроение ${state.checkin.mood}/5 · стресс ${state.checkin.stress}/5`,
-        insight: res.insight,
+        insight: res.crisis ? null : res.insight,
         autoHelp: res.autoHelp,
-        needsSupport: res.needsSupport,
+        needsSupport: res.needsSupport || res.crisis,
+        crisis: !!res.crisis,
       });
     } else {
       go("home");
@@ -744,14 +745,31 @@ function renderStressUI() {
   }
 }
 
-function showSupportResult({ title, meta, insight, autoHelp, needsSupport }) {
+function showSupportResult({
+  title,
+  meta,
+  insight,
+  autoHelp,
+  needsSupport,
+  crisis,
+}) {
   state.lastAutoHelp = autoHelp || null;
-  if ($("#supportTitle")) $("#supportTitle").textContent = title || "Сохранено";
-  if ($("#supportMeta")) $("#supportMeta").textContent = meta || "";
+  state.lastCrisis = !!crisis || !!autoHelp?.urgent;
+  if ($("#supportTitle")) {
+    $("#supportTitle").textContent = crisis
+      ? "Важно · поддержка"
+      : title || "Сохранено";
+  }
+  if ($("#supportMeta")) {
+    $("#supportMeta").textContent = crisis
+      ? "Живая помощь важнее бота · 8-800-2000-122 · 112"
+      : meta || "";
+  }
 
   const insightEl = $("#supportInsight");
   if (insightEl) {
-    if (insight) {
+    // When crisis, put full text in help block; skip duplicate insight
+    if (insight && !crisis) {
       insightEl.classList.remove("hidden");
       insightEl.textContent = insight;
     } else {
@@ -764,10 +782,16 @@ function showSupportResult({ title, meta, insight, autoHelp, needsSupport }) {
   if (helpEl) {
     if (autoHelp?.text) {
       helpEl.classList.remove("hidden");
-      helpEl.textContent =
-        (needsSupport ? "🛟 Автопомощь (Плюс)\n\n" : "") + autoHelp.text;
+      helpEl.classList.toggle("crisis-help", !!crisis || !!autoHelp.urgent);
+      const prefix = crisis || autoHelp.urgent
+        ? "⚠️ Сейчас важна живая поддержка\n\n"
+        : needsSupport
+          ? "🛟 Автопомощь\n\n"
+          : "";
+      helpEl.textContent = prefix + autoHelp.text;
     } else {
       helpEl.classList.add("hidden");
+      helpEl.classList.remove("crisis-help");
       helpEl.textContent = "";
     }
   }
@@ -781,9 +805,9 @@ function showSupportResult({ title, meta, insight, autoHelp, needsSupport }) {
         ? `🧘 ${autoHelp.practiceTitle}`
         : "🧘 Практика";
     } else {
-      practiceBtn.style.display = needsSupport ? "" : "none";
-      practiceBtn.dataset.practiceId = "";
-      practiceBtn.textContent = "🧘 Практика";
+      practiceBtn.style.display = needsSupport || crisis ? "" : "none";
+      practiceBtn.dataset.practiceId = autoHelp?.practiceId || "54321";
+      practiceBtn.textContent = "🧘 Заземление";
     }
   }
 
@@ -890,13 +914,14 @@ async function onStressSave() {
     state.stressSource = null;
     if ($("#stressNote")) $("#stressNote").value = "";
     await loadMe();
-    if (res.autoHelp || res.needsSupport) {
+    if (res.crisis || res.autoHelp || res.needsSupport) {
       showSupportResult({
-        title: "Стресс записан",
+        title: res.crisis ? "Важно · поддержка" : "Стресс записан",
         meta: `Уровень ${level}/5`,
         insight: null,
         autoHelp: res.autoHelp,
-        needsSupport: res.needsSupport,
+        needsSupport: res.needsSupport || res.crisis,
+        crisis: !!res.crisis,
       });
     } else {
       go("home");
@@ -1128,6 +1153,17 @@ async function onJournalSave() {
       } catch (_) {}
     }
     await loadJournalPrompt();
+    if (res.crisis || res.autoHelp) {
+      showSupportResult({
+        title: "Важно · поддержка",
+        meta: "Запись сохранена · живая помощь важнее бота",
+        insight: null,
+        autoHelp: res.autoHelp,
+        needsSupport: true,
+        crisis: !!res.crisis,
+      });
+      return;
+    }
     setJournalTab("list");
     // Render immediately from optimistic state, then refresh from server
     renderJournalList();
@@ -1228,14 +1264,22 @@ async function sendCoach(text) {
       };
       renderCoachMeta();
     }
-    if (res.usedFallback === false) {
-      /* live AI */
+    if (res.crisis) {
+      toast("8-800-2000-122 · если опасно — 112");
+      if (res.suggestedPracticeId) {
+        state.lastAutoHelp = {
+          practiceId: res.suggestedPracticeId,
+          text: res.reply,
+          urgent: true,
+        };
+      }
     }
   } catch (e) {
     if (pending) pending.remove();
     if (e.status === 429) {
       appendBubble(
-        "Лимит на сегодня. Завтра обновится — или подписка 💎 (крипта через Crypto Bot).",
+        "Лимит на сегодня. Завтра обновится — или подписка 💎 (крипта через Crypto Bot).\n\n" +
+          "Если совсем тяжело: 8-800-2000-122 или 112.",
         "bot"
       );
       toast("Лимит коуча");
@@ -1244,7 +1288,8 @@ async function sendCoach(text) {
       showAuthBanner(apiErrorMessage(e));
     } else {
       appendBubble(
-        "Сейчас не удалось ответить. Попробуй ещё раз через минуту.",
+        "Сейчас не удалось ответить. Попробуй ещё раз через минуту.\n\n" +
+          "Если очень тяжело: 8-800-2000-122 или 112.",
         "bot"
       );
       console.error("coach", e);
