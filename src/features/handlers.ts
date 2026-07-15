@@ -298,6 +298,27 @@ export function registerHandlers(bot: Bot) {
     await ctx.reply(`✅ Подписка снята у ${target.label}. Снова free.`);
   });
 
+  /**
+   * Admin: how many people use the app
+   * /users  or  /usage
+   */
+  bot.command("users", async (ctx) => {
+    ensureUser(ctx);
+    if (!isAdmin(ctx)) {
+      await ctx.reply("Команда только для админа (ADMIN_TELEGRAM_IDS).");
+      return;
+    }
+    await replyUsageStats(ctx);
+  });
+  bot.command("usage", async (ctx) => {
+    ensureUser(ctx);
+    if (!isAdmin(ctx)) {
+      await ctx.reply("Команда только для админа (ADMIN_TELEGRAM_IDS).");
+      return;
+    }
+    await replyUsageStats(ctx);
+  });
+
   // Reply keyboard texts
   bot.hears("🌤 Чек-ин", async (ctx) => {
     ensureUser(ctx);
@@ -1271,6 +1292,36 @@ async function openMiniApp(ctx: Context) {
       "Чек-ин, практики, дневник, стресс, AI-коуч и статистика — в удобном интерфейсе.\n" +
       "Также: кнопка меню ☰ → «Открыть Бережно».",
     { parse_mode: "Markdown", reply_markup: appKb }
+  );
+}
+
+async function replyUsageStats(ctx: Context) {
+  const s = store.appUsageStats();
+  const pct = (n: number) =>
+    s.totalUsers ? `${Math.round((n / s.totalUsers) * 100)}%` : "0%";
+
+  await ctx.reply(
+    `📊 *Статистика careofme*\n` +
+      `_${new Date(s.generatedAt).toLocaleString("ru-RU")}_\n\n` +
+      `👥 *Всего пользователей:* ${s.totalUsers}\n` +
+      `• free: ${s.free}\n` +
+      `• premium: ${s.premium} (care ${s.care} · plus ${s.plus})\n` +
+      `• из них trial: ${s.trial}\n\n` +
+      `🟢 *Активность*\n` +
+      `• за 24 ч: ${s.active1d} (${pct(s.active1d)})\n` +
+      `• за 7 дн: ${s.active7d} (${pct(s.active7d)})\n` +
+      `• за 30 дн: ${s.active30d} (${pct(s.active30d)})\n\n` +
+      `🆕 *Новые*\n` +
+      `• за 7 дн: ${s.new7d}\n` +
+      `• за 30 дн: ${s.new30d}\n\n` +
+      `📈 *Вовлечённость*\n` +
+      `• прошли онбординг: ${s.onboardingDone}\n` +
+      `• хотя бы 1 чек-ин: ${s.withCheckin}\n` +
+      `• чек-инов всего: ${s.totalCheckins}\n` +
+      `• записей дневника: ${s.totalJournal}\n` +
+      `• сообщений коучу: ${s.totalCoachUserMsgs}\n\n` +
+      `_Считаются все, кто открывал бота или Mini App._`,
+    { parse_mode: "Markdown" }
   );
 }
 

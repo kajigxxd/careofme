@@ -87,6 +87,8 @@ export interface UserProfile {
   isTrial?: boolean;
   /** One free trial per paid plan type */
   trialUsed?: { care?: boolean; plus?: boolean };
+  /** Last activity (bot or Mini App API) */
+  lastSeenAt?: string;
   reminderHour?: number; // 0-23 local-ish
   lastCheckinDate?: string; // YYYY-MM-DD
   streak: number;
@@ -206,13 +208,15 @@ export class Store {
   }): UserProfile {
     const key = String(params.userId);
     let user = this.data.users[key];
+    const now = new Date().toISOString();
     if (!user) {
       user = {
         userId: params.userId,
         chatId: params.chatId,
         username: params.username,
         firstName: params.firstName,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        lastSeenAt: now,
         focusAreas: ["general"],
         timezoneOffsetMin: 180, // MSK default
         onboardingDone: false,
@@ -230,12 +234,111 @@ export class Store {
       this.data.users[key] = user;
       this.persist();
     } else {
-      user.chatId = params.chatId;
-      if (params.username) user.username = params.username;
-      if (params.firstName) user.firstName = params.firstName;
-      this.persist();
+      let dirty = false;
+      if (user.chatId !== params.chatId) {
+        user.chatId = params.chatId;
+        dirty = true;
+      }
+      if (params.username && user.username !== params.username) {
+        user.username = params.username;
+        dirty = true;
+      }
+      if (params.firstName && user.firstName !== params.firstName) {
+        user.firstName = params.firstName;
+        dirty = true;
+      }
+      // Throttle disk writes: lastSeen at most every 5 minutes
+      const prev = user.lastSeenAt ? new Date(user.lastSeenAt).getTime() : 0;
+      if (Date.now() - prev > 5 * 60_000) {
+        user.lastSeenAt = now;
+        dirty = true;
+      }
+      if (dirty) this.persist();
     }
     return user;
+  }
+
+  private lastActivityIso(user: UserProfile): string {
+    const times: number[] = [];
+    if (user.lastSeenAt) times.push(new Date(user.lastSeenAt).getTime());
+    if (user.createdAt) times.push(new Date(user.createdAt).getTime());
+    if (user.checkins[0]?.at) times.push(new Date(user.checkins[0].at).getTime());
+    if (user.journal[0]?.at) times.push(new Date(user.journal[0].at).getTime());
+    if (user.stress[0]?.at) times.push(new Date(user.stress[0].at).getTime());
+    if (user.practices[0]?.at) times.push(new Date(user.practices[0].at).getTime());
+    const coach = user.coachMessages[user.coachMessages.length - 1];
+    if (coach?.at) times.push(new Date(coach.at).getTime());
+    const max = times.length ? Math.max(...times.filter((n) => Number.isFinite(n))) : 0;
+    return max ? new Date(max).toISOString() : user.createdAt;
+  }
+
+  /** Aggregated product metrics for the admin */
+  appUsageStats() {
+    const users = Object.values(this.data.users);
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+
+    let premium = 0;
+    let trial = 0;
+    let care = 0;
+    let plus = 0;
+    let free = 0;
+    let onboardingDone = 0;
+    let withCheckin = 0;
+    let active1d = 0;
+    let active7d = 0;
+    let active30d = 0;
+    let new7d = 0;
+    let new30d = 0;
+    let totalCheckins = 0;
+    let totalJournal = 0;
+    let totalCoach = 0;
+
+    for (const u of users) {
+      const isPrem = this.isPremium(u);
+      if (isPrem) {
+        premium += 1;
+        if (u.isTrial) trial += 1;
+        if (u.plan === "plus") plus += 1;
+        else if (u.plan === "care") care += 1;
+      } else {
+        free += 1;
+      }
+      if (u.onboardingDone) onboardingDone += 1;
+      if (u.checkins.length) withCheckin += 1;
+      totalCheckins += u.checkins.length;
+      totalJournal += u.journal.length;
+      totalCoach += u.coachMessages.filter((m) => m.role === "user").length;
+
+      const last = new Date(this.lastActivityIso(u)).getTime();
+      if (now - last <= day) active1d += 1;
+      if (now - last <= 7 * day) active7d += 1;
+      if (now - last <= 30 * day) active30d += 1;
+
+      const created = new Date(u.createdAt).getTime();
+      if (now - created <= 7 * day) new7d += 1;
+      if (now - created <= 30 * day) new30d += 1;
+    }
+
+    return {
+      totalUsers: users.length,
+      free,
+      premium,
+      trial,
+      care,
+      plus,
+      onboardingDone,
+      withCheckin,
+      active1d,
+      active7d,
+      active30d,
+      new7d,
+      new30d,
+      totalCheckins,
+      totalJournal,
+      totalCoachUserMsgs: totalCoach,
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   updateUser(userId: number, patch: Partial<UserProfile>): UserProfile {

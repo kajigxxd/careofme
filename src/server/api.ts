@@ -909,5 +909,18 @@ export function createApiRouter(): Router {
     });
   });
 
+  /** Admin usage metrics — only for ADMIN_TELEGRAM_IDS */
+  router.get("/admin/usage", (req, res) => {
+    const profile = (req as any).profile;
+    const admins = (process.env.ADMIN_TELEGRAM_IDS || process.env.ADMIN_USER_IDS || "")
+      .split(/[,\s]+/)
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (!admins.length || !admins.includes(profile.userId)) {
+      return res.status(403).json({ error: "admin_only" });
+    }
+    res.json({ ok: true, stats: store.appUsageStats() });
+  });
+
   return router;
 }
