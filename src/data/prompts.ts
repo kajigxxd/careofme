@@ -25,8 +25,18 @@ export const JOURNAL_PROMPTS: string[] = [
 export const FOCUS_LABELS: Record<FocusArea, string> = {
   burnout: "🔥 Выгорание",
   anxiety: "🌊 Тревога",
-  insomnia: "🌙 Бессонница",
-  general: "🌿 Общее самочувствие",
+  insomnia: "🌙 Бессонница / сон",
+  loneliness: "🫧 Одиночество",
+  sadness: "🌧 Грусть / тяжесть",
+  overwhelm: "🌀 Перегруз / хаос",
+  anger: "⚡️ Раздражение / злость",
+  emptiness: "🕳 Пустота / онемение",
+  guilt: "🪞 Вина / стыд",
+  fear: "🕯 Страх / неуверенность в будущем",
+  relationships: "💬 Напряжение в отношениях",
+  self_doubt: "🌫️ Неуверенность в себе",
+  apathy: "🪨 Апатия / нет сил",
+  general: "🌿 Просто тяжело / не знаю",
 };
 
 export const MOOD_LABELS: Record<number, string> = {

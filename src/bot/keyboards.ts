@@ -1,6 +1,6 @@
 import { InlineKeyboard, Keyboard } from "grammy";
 import { FOCUS_LABELS, STRESS_SOURCES } from "../data/prompts";
-import type { FocusArea } from "../db/store";
+import { ALL_FOCUS_AREAS, type FocusArea } from "../db/store";
 import { PRACTICES, type Practice } from "../data/practices";
 import { resolveWebAppUrl } from "../config";
 
@@ -53,8 +53,7 @@ export function moodKeyboard(prefix: string) {
 
 export function focusKeyboard(selected: FocusArea[] = []) {
   const kb = new InlineKeyboard();
-  const areas: FocusArea[] = ["burnout", "anxiety", "insomnia", "general"];
-  for (const a of areas) {
+  for (const a of ALL_FOCUS_AREAS) {
     const mark = selected.includes(a) ? "✓ " : "";
     kb.text(`${mark}${FOCUS_LABELS[a]}`, `focus_toggle:${a}`).row();
   }
@@ -108,6 +107,11 @@ export function coachKeyboard() {
     .text("🌊 Тревожно", "coach_quick:anxiety")
     .row()
     .text("🌙 Не сплю", "coach_quick:sleep")
+    .text("🌧 Грустно", "coach_quick:sad")
+    .row()
+    .text("🫧 Одиноко", "coach_quick:lonely")
+    .text("🌀 Перегруз", "coach_quick:overwhelm")
+    .row()
     .text("💬 Свой вопрос", "coach_quick:free")
     .row()
     .text("« В меню", "nav:home");

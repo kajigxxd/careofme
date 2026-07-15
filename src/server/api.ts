@@ -1,5 +1,10 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { store, type FocusArea, type MoodScore } from "../db/store";
+import {
+  store,
+  ALL_FOCUS_AREAS,
+  type FocusArea,
+  type MoodScore,
+} from "../db/store";
 import { validateInitData } from "./auth";
 import {
   PRACTICES,
@@ -103,8 +108,8 @@ export function createApiRouter(): Router {
   router.post("/onboarding", (req, res) => {
     const profile = (req as any).profile;
     const areas = (req.body?.focusAreas || []) as FocusArea[];
-    const allowed: FocusArea[] = ["burnout", "anxiety", "insomnia", "general"];
-    const focusAreas = areas.filter((a) => allowed.includes(a));
+    const allowed = new Set<FocusArea>(ALL_FOCUS_AREAS);
+    const focusAreas = areas.filter((a) => allowed.has(a));
     const updated = store.updateUser(profile.userId, {
       focusAreas: focusAreas.length ? focusAreas : ["general"],
       onboardingDone: true,

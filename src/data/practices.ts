@@ -23,7 +23,7 @@ export const PRACTICES: Practice[] = [
     emoji: "🫁",
     kind: "breathing",
     durationMin: 3,
-    focus: ["anxiety", "general", "burnout"],
+    focus: ["anxiety", "fear", "overwhelm", "anger", "general", "burnout"],
     free: true,
     intro:
       "Простая техника, чтобы сбавить обороты нервной системы. Можно делать где угодно — в метро, перед созвоном, в кровати.",
@@ -44,7 +44,7 @@ export const PRACTICES: Practice[] = [
     emoji: "🌙",
     kind: "breathing",
     durationMin: 4,
-    focus: ["insomnia", "anxiety", "general"],
+    focus: ["insomnia", "anxiety", "fear", "overwhelm", "general"],
     free: true,
     intro:
       "Классика для вечера и беспокойных мыслей. Помогает телу понять: «сейчас можно отпустить».",
@@ -65,7 +65,7 @@ export const PRACTICES: Practice[] = [
     emoji: "🌳",
     kind: "grounding",
     durationMin: 3,
-    focus: ["anxiety", "general"],
+    focus: ["anxiety", "fear", "overwhelm", "emptiness", "anger", "general"],
     free: true,
     intro:
       "Когда тревога «уносит» в голову — возвращаем внимание в тело и комнату. Без философии, просто факты.",
@@ -86,7 +86,15 @@ export const PRACTICES: Practice[] = [
     emoji: "🧠",
     kind: "cbt",
     durationMin: 5,
-    focus: ["anxiety", "burnout", "general"],
+    focus: [
+      "anxiety",
+      "burnout",
+      "guilt",
+      "self_doubt",
+      "fear",
+      "relationships",
+      "general",
+    ],
     free: true,
     intro:
       "Не «думать позитивно», а чуть отойти в сторону и посмотреть на мысль как на событие, а не как на истину.",
@@ -107,7 +115,7 @@ export const PRACTICES: Practice[] = [
     emoji: "✨",
     kind: "cbt",
     durationMin: 2,
-    focus: ["burnout", "general"],
+    focus: ["burnout", "apathy", "sadness", "self_doubt", "emptiness", "general"],
     free: true,
     intro:
       "При выгорании мозг фильтрует только «недовёл». Мы сознательно добавляем крошечные факты «сделал».",
@@ -127,7 +135,16 @@ export const PRACTICES: Practice[] = [
     emoji: "🧘",
     kind: "body",
     durationMin: 4,
-    focus: ["burnout", "anxiety", "insomnia", "general"],
+    focus: [
+      "burnout",
+      "anxiety",
+      "insomnia",
+      "emptiness",
+      "apathy",
+      "anger",
+      "overwhelm",
+      "general",
+    ],
     free: true,
     intro:
       "Не медитация «опустоши ум». Просто пройтись вниманием по телу и отметить, где зажато — без исправлений.",
@@ -148,7 +165,7 @@ export const PRACTICES: Practice[] = [
     emoji: "🛏",
     kind: "sleep",
     durationMin: 5,
-    focus: ["insomnia", "anxiety", "burnout"],
+    focus: ["insomnia", "anxiety", "burnout", "fear", "overwhelm"],
     free: false,
     intro:
       "Не «усни сейчас», а «переведи мозг из дня в ночь». Подходит за 20–40 минут до сна.",
@@ -168,7 +185,7 @@ export const PRACTICES: Practice[] = [
     emoji: "🪟",
     kind: "cbt",
     durationMin: 6,
-    focus: ["anxiety", "insomnia"],
+    focus: ["anxiety", "insomnia", "fear", "overwhelm", "guilt"],
     free: false,
     intro:
       "Тревога ненавидит расписание. Даём ей 10 минут «официального» времени — и выключаем вне окна.",
@@ -189,7 +206,7 @@ export const PRACTICES: Practice[] = [
     emoji: "🛡",
     kind: "cbt",
     durationMin: 4,
-    focus: ["burnout", "general"],
+    focus: ["burnout", "relationships", "guilt", "overwhelm", "anger", "general"],
     free: false,
     intro:
       "Выгорание часто кормится «неудобно отказать». Сегодня — одна маленькая граница, не революция.",
@@ -209,7 +226,7 @@ export const PRACTICES: Practice[] = [
     emoji: "🌿",
     kind: "journal",
     durationMin: 3,
-    focus: ["general", "burnout"],
+    focus: ["general", "burnout", "sadness", "loneliness", "apathy", "emptiness"],
     free: true,
     intro:
       "Не токсичный позитив. Только то, что правда чувствуется — даже если это «тёплый чай» и «тишина 5 минут».",

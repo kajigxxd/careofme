@@ -170,13 +170,26 @@ async function loadMe() {
 }
 
 /* —— Onboarding —— */
+const DEFAULT_FOCUS_LABELS = {
+  burnout: "🔥 Выгорание",
+  anxiety: "🌊 Тревога",
+  insomnia: "🌙 Бессонница / сон",
+  loneliness: "🫧 Одиночество",
+  sadness: "🌧 Грусть / тяжесть",
+  overwhelm: "🌀 Перегруз / хаос",
+  anger: "⚡️ Раздражение / злость",
+  emptiness: "🕳 Пустота / онемение",
+  guilt: "🪞 Вина / стыд",
+  fear: "🕯 Страх / неуверенность в будущем",
+  relationships: "💬 Напряжение в отношениях",
+  self_doubt: "🌫️ Неуверенность в себе",
+  apathy: "🪨 Апатия / нет сил",
+  general: "🌿 Просто тяжело / не знаю",
+};
+
 function renderOnboarding() {
-  const labels = state.me?.focusLabels || {
-    burnout: "🔥 Выгорание",
-    anxiety: "🌊 Тревога",
-    insomnia: "🌙 Бессонница",
-    general: "🌿 Общее",
-  };
+  const labels = state.me?.focusLabels || DEFAULT_FOCUS_LABELS;
+  if (!state.focusDraft?.length) state.focusDraft = ["general"];
   const box = $("#focusChips");
   box.innerHTML = "";
   for (const [id, label] of Object.entries(labels)) {

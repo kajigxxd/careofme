@@ -26,7 +26,7 @@ export interface UserSession {
   pendingStressLevel?: 1 | 2 | 3 | 4 | 5;
   pendingStressSource?: string;
   journalPrompt?: string;
-  focusDraft?: Array<"burnout" | "anxiety" | "insomnia" | "general">;
+  focusDraft?: import("../db/store").FocusArea[];
 }
 
 const sessions = new Map<number, UserSession>();

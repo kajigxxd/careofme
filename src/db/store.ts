@@ -2,7 +2,40 @@ import fs from "fs";
 import path from "path";
 
 export type MoodScore = 1 | 2 | 3 | 4 | 5;
-export type FocusArea = "burnout" | "anxiety" | "insomnia" | "general";
+
+/** What the person feels / needs support with right now */
+export type FocusArea =
+  | "burnout"
+  | "anxiety"
+  | "insomnia"
+  | "loneliness"
+  | "sadness"
+  | "overwhelm"
+  | "anger"
+  | "emptiness"
+  | "guilt"
+  | "fear"
+  | "relationships"
+  | "self_doubt"
+  | "apathy"
+  | "general";
+
+export const ALL_FOCUS_AREAS: FocusArea[] = [
+  "burnout",
+  "anxiety",
+  "insomnia",
+  "loneliness",
+  "sadness",
+  "overwhelm",
+  "anger",
+  "emptiness",
+  "guilt",
+  "fear",
+  "relationships",
+  "self_doubt",
+  "apathy",
+  "general",
+];
 
 export interface MoodCheckin {
   id: string;
