@@ -57,3 +57,16 @@ railway up
 ## Лицензия
 
 MIT
+
+
+## AI-коуч и крипто-оплата
+
+| Env | Где взять |
+|-----|-----------|
+| `XAI_API_KEY` | https://console.x.ai |
+| `CRYPTO_PAY_TOKEN` | @CryptoBot → Crypto Pay → Create App |
+
+Webhook Crypto Pay:
+`https://careofme-production.up.railway.app/payments/cryptopay/webhook`
+
+Тарифы: 199 ₽ (Забота) / 349 ₽ (Плюс), fiat RUB → USDT/TON/BTC…
