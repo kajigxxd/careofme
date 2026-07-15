@@ -49,10 +49,6 @@ import {
   isCryptoPayConfigured,
 } from "../payments/cryptopay";
 import {
-  createYooPayment,
-  isYooKassaConfigured,
-} from "../payments/yookassa";
-import {
   PLAN_DURATION_DAYS,
   PLAN_PERIODS,
   isPlanPeriod,
@@ -1261,58 +1257,14 @@ async function offerPlanPayment(
   const rub = planPriceRub(plan, period);
   const days = periodDays(period);
   const periodLabel = PLAN_PERIODS[period].label;
-  const yooOk = isYooKassaConfigured();
-  const cryptoOk = isCryptoPayConfigured();
-
-  if (!yooOk && !cryptoOk) {
+  if (!isCryptoPayConfigured()) {
     await ctx.reply(
       `${info.title} — ${rub} ₽ / ${periodLabel}\n\n` +
         info.perks.map((p) => `• ${p}`).join("\n") +
-        `\n\n⚠️ Оплата не настроена (ЮMoney или Crypto Pay).`,
+        `\n\n⚠️ Оплата криптой не настроена на сервере.`,
       { reply_markup: plansKeyboard() }
     );
     return;
-  }
-
-  // Prefer RUB YooMoney when available
-  if (yooOk) {
-    try {
-      await ctx.replyWithChatAction("typing");
-      const { payment, payUrl, amountRub } = await createYooPayment({
-        userId,
-        plan,
-        period,
-      });
-      store.trackYooPayment(userId, payment.id, plan, days, amountRub);
-      const kb = new InlineKeyboard()
-        .url("₽ Оплатить картой / ЮMoney", payUrl)
-        .row()
-        .text("🔄 Я оплатил(а)", `pay_check:${plan}`)
-        .row()
-        .text("« Сменить срок", `plan:${plan}`)
-        .row()
-        .text("« Назад", "nav:premium");
-      await ctx.reply(
-        `${info.title} — ${amountRub} ₽ / ${periodLabel}\n\n` +
-          info.perks.map((p) => `• ${p}`).join("\n") +
-          `\n\n💳 Оплата в *рублях* через ЮMoney / карту.\n` +
-          `1) Нажми «Оплатить»\n` +
-          `2) Оплати в браузере\n` +
-          `3) Вернись и нажми «Я оплатил(а)»\n\n` +
-          `Платёж \`${payment.id.slice(0, 8)}…\``,
-        { parse_mode: "Markdown", reply_markup: kb }
-      );
-      return;
-    } catch (e) {
-      console.error("yoo invoice bot", e);
-      if (!cryptoOk) {
-        await ctx.reply(
-          "Не удалось создать счёт ЮMoney. Попробуй позже.",
-          { reply_markup: plansKeyboard() }
-        );
-        return;
-      }
-    }
   }
 
   try {

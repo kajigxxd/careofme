@@ -438,19 +438,7 @@ function onAppClick(e) {
     const plan = periodOpt.getAttribute("data-pay-for") || state.pendingPayPlan;
     const period = periodOpt.getAttribute("data-plan-period");
     hidePeriodModal();
-    if (plan && period) choosePayMethodThenPay(plan, period);
-    return;
-  }
-
-  const methodOpt = target.closest("[data-pay-method]");
-  if (methodOpt && !methodOpt.disabled) {
-    e.preventDefault();
-    e.stopPropagation();
-    const method = methodOpt.getAttribute("data-pay-method");
-    hideMethodModal();
-    if (state.pendingPayPlan && state.pendingPayPeriod && method) {
-      startCryptoPay(state.pendingPayPlan, state.pendingPayPeriod, method);
-    }
+    if (plan && period) startCryptoPay(plan, period);
     return;
   }
 
@@ -1579,23 +1567,20 @@ function showPayModal(plan, payUrl, invoiceId, meta = {}) {
   const rub = meta.amountRub != null ? `${meta.amountRub} ₽` : "";
   const period = meta.periodLabel || meta.period || "";
   const usdt = meta.amountUsdt ? `≈ ${meta.amountUsdt} USDT` : "";
-  const isYoo = meta.method === "yoomoney";
   const macHint = isMacDesktop() || isDesktopClient()
-    ? isYoo
-      ? " На Mac: открой ссылку оплаты и вернись в приложение."
-      : " На Mac: обязательно нажми «Открыть Crypto Bot»."
+    ? " На Mac: обязательно нажми «Открыть Crypto Bot»."
     : "";
-  $("#payModalText").textContent = isYoo
-    ? `«${planTitle}»${period ? ` · ${period}` : ""}${rub ? ` · ${rub}` : ""}. Оплати картой или ЮMoney, вернись и нажми «Проверить оплату».${macHint}`
-    : `«${planTitle}»${period ? ` · ${period}` : ""}${rub ? ` · ${rub}` : ""}${usdt ? ` · ${usdt}` : ""} (курс 81 ₽). Оплати в Crypto Bot, вернись и нажми «Проверить оплату».${macHint}`;
+  $("#payModalText").textContent =
+    `«${planTitle}»${period ? ` · ${period}` : ""}${rub ? ` · ${rub}` : ""}${usdt ? ` · ${usdt}` : ""} (курс 81 ₽). ` +
+    `Оплати в Crypto Bot, вернись и нажми «Проверить оплату».${macHint}`;
   const openBtn = document.getElementById("payModalOpen");
   if (openBtn) {
-    openBtn.textContent = isYoo ? "Открыть оплату ₽" : "Открыть Crypto Bot";
+    openBtn.textContent = "Открыть Crypto Bot";
     openBtn.setAttribute("href", payUrl || "#");
   }
   $("#payModal").classList.remove("hidden");
   const st = $("#payStatus");
-  if (st) st.textContent = `Счёт ${invoiceId} создан`;
+  if (st) st.textContent = `Счёт #${invoiceId} создан`;
   setTimeout(() => {
     document.getElementById("payModalOpen")?.focus?.();
   }, 50);
@@ -1652,44 +1637,6 @@ function hidePeriodModal() {
   $("#periodModal")?.classList.add("hidden");
 }
 
-function hideMethodModal() {
-  $("#methodModal")?.classList.add("hidden");
-}
-
-function choosePayMethodThenPay(plan, period) {
-  state.pendingPayPlan = plan;
-  state.pendingPayPeriod = period;
-  const yoo = !!state.me?.yooKassaConfigured || !!state.me?.payments?.yoomoney;
-  const crypto = !!state.me?.cryptoPayConfigured || !!state.me?.payments?.crypto;
-
-  if (yoo && crypto) {
-    // Both available — ask
-    const catalog = state.me?.planCatalog?.find((p) => p.id === plan);
-    const pmeta = catalog?.periods?.find((x) => x.id === period);
-    const rub = pmeta?.priceRub;
-    if ($("#methodModalHint")) {
-      $("#methodModalHint").textContent = rub
-        ? `Сумма ${rub} ₽ · выбери удобный способ`
-        : "Карта / ЮMoney в рублях или крипта USDT";
-    }
-    const yooBtn = $("#methodYoo");
-    const crBtn = $("#methodCrypto");
-    if (yooBtn) yooBtn.style.display = "";
-    if (crBtn) crBtn.style.display = "";
-    $("#methodModal")?.classList.remove("hidden");
-    return;
-  }
-  if (yoo) {
-    startCryptoPay(plan, period, "yoomoney");
-    return;
-  }
-  if (crypto) {
-    startCryptoPay(plan, period, "crypto");
-    return;
-  }
-  toast("Оплата временно недоступна");
-}
-
 async function startTrial(plan) {
   if (plan !== "care" && plan !== "plus") return;
   if (state._trialing) return;
@@ -1723,7 +1670,7 @@ async function startTrial(plan) {
   }
 }
 
-async function startCryptoPay(plan, period, method) {
+async function startCryptoPay(plan, period) {
   if (!plan) return;
   if (state._paying) return; // prevent double invoices
   if (plan === "free") {
@@ -1746,27 +1693,17 @@ async function startCryptoPay(plan, period, method) {
     return;
   }
 
-  const yoo = !!state.me?.yooKassaConfigured || !!state.me?.payments?.yoomoney;
-  const crypto = !!state.me?.cryptoPayConfigured || !!state.me?.payments?.crypto;
-  if (!yoo && !crypto) {
+  if (!state.me?.cryptoPayConfigured) {
     toast("Оплата временно недоступна");
     return;
   }
 
-  // If method not chosen and both exist — ask
-  if (!method && yoo && crypto) {
-    choosePayMethodThenPay(plan, period);
-    return;
-  }
-  const payMethod =
-    method || (yoo ? "yoomoney" : "crypto");
-
   state._paying = true;
-  toast(payMethod === "yoomoney" ? "Создаю счёт ЮMoney…" : "Создаю счёт…");
+  toast("Создаю счёт…");
   try {
     const res = await api("/plan", {
       method: "POST",
-      body: { plan, period, method: payMethod },
+      body: { plan, period },
     });
     if (res.payment === "already_active") {
       toast("Подписка уже активна");
@@ -1774,33 +1711,19 @@ async function startCryptoPay(plan, period, method) {
       renderPlans();
       return;
     }
-    if ((res.payment === "crypto" || res.payment === "yoomoney") && res.payUrl) {
-      const isYoo = res.payment === "yoomoney" || res.method === "yoomoney";
-      showPayModal(plan, res.payUrl, res.invoiceId || res.paymentId, {
+    if (res.payment === "crypto" && res.payUrl) {
+      showPayModal(plan, res.payUrl, res.invoiceId, {
         amountRub: res.amountRub,
         amountUsdt: res.amountUsdt,
         period: res.period,
         periodLabel: res.periodLabel,
         days: res.days,
-        method: isYoo ? "yoomoney" : "crypto",
       });
-      startPayPolling(res.invoiceId || res.paymentId, true);
-      // Open payment page
-      if (isYoo) {
-        // External bank page — openLink works better in Mini App
-        try {
-          if (typeof tg?.openLink === "function") {
-            tg.openLink(res.payUrl, { try_instant_view: false });
-          } else {
-            window.open(res.payUrl, "_blank");
-          }
-        } catch (_) {
-          openPayUrl(res.payUrl);
-        }
-      } else if (!isDesktopClient() && !isMacDesktop()) {
+      startPayPolling(res.invoiceId, true);
+      if (!isDesktopClient() && !isMacDesktop()) {
         setTimeout(() => openPayUrl(res.payUrl), 200);
       } else {
-        toast("Нажми «Открыть оплату» ниже");
+        toast("Нажми «Открыть Crypto Bot» ниже");
       }
       return;
     }
@@ -1808,11 +1731,9 @@ async function startCryptoPay(plan, period, method) {
   } catch (e) {
     console.error(e);
     if (e.data?.error === "payments_not_configured") {
-      toast("Оплата не настроена на сервере");
-    } else if (e.data?.error === "yoomoney_not_configured") {
-      toast("ЮMoney не настроена");
+      toast("Крипто-оплата не настроена");
     } else if (e.data?.error === "invoice_failed") {
-      toast("Не удалось создать счёт");
+      toast("Crypto Bot не создал счёт");
     } else if (e.data?.error === "already_premium") {
       toast("Подписка уже активна");
       await loadMe();
@@ -2083,7 +2004,6 @@ function wireUi() {
   on("payModalCheck", "click", () => verifyPayment(state.lastInvoiceId, false));
   on("payModalClose", "click", hidePayModal);
   on("periodModalClose", "click", hidePeriodModal);
-  on("methodModalClose", "click", hideMethodModal);
 
   // Also bind feelings button directly (belt + suspenders for macOS)
   on("editFeelingsBtn", "click", (ev) => {
