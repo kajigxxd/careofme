@@ -13,7 +13,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715h" />
+    <link rel="stylesheet" href="./styles.css?v=20260715i" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -352,24 +352,35 @@
         <section class="screen" data-screen="premium">
           <h1>💎 Подписка</h1>
           <p class="muted">
-            Самопомощь каждый день · дешевле психолога
+            3 дня бесплатно на каждый тариф · потом USDT · без давления
           </p>
           <div class="card crypto-info" id="cryptoInfo">
-            <div class="crypto-title">Оплата криптовалютой</div>
+            <div class="crypto-title">Пробный период и оплата</div>
             <p class="muted">
-              Через <b>@CryptoBot</b>. Счёт в <b>USDT</b> по фиксированному курсу
-              <b>81 ₽ = 1 USDT</b> (199 ₽ ≈ 2.46 USDT · 349 ₽ ≈ 4.31 USDT).
+              Можно попробовать <b>Заботу</b> и <b>Плюс</b> по <b>3 дня</b> бесплатно
+              (1 раз на тариф). Дальше — <b>@CryptoBot</b>, счёт в <b>USDT</b>
+              (курс <b>81 ₽</b>).
             </p>
             <div class="crypto-badges">
-              <span>USDT</span><span>курс 81</span>
+              <span>3 дня free</span><span>USDT</span><span>курс 81</span>
             </div>
             <div class="pay-row" style="margin-top:12px">
-              <button class="btn primary block" type="button" data-pay-plan="care">
+              <button class="btn primary block" type="button" data-trial-plan="care">
+                🎁 Забота · 3 дня бесплатно
+              </button>
+            </div>
+            <div class="pay-row">
+              <button class="btn primary block" type="button" data-trial-plan="plus">
+                🎁 Плюс · 3 дня бесплатно
+              </button>
+            </div>
+            <div class="pay-row" style="margin-top:8px">
+              <button class="btn ghost block" type="button" data-pay-plan="care">
                 💎 Забота · 199 ₽ / мес
               </button>
             </div>
             <div class="pay-row">
-              <button class="btn primary block" type="button" data-pay-plan="plus">
+              <button class="btn ghost block" type="button" data-pay-plan="plus">
                 ✨ Плюс · 349 ₽ / мес
               </button>
             </div>
@@ -421,6 +432,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715h" type="module"></script>
+    <script src="./app.js?v=20260715i" type="module"></script>
   </body>
 </html>

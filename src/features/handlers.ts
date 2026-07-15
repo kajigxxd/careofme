@@ -418,6 +418,29 @@ export function registerHandlers(bot: Bot) {
         return;
       }
 
+      if (data.startsWith("plan:trial:")) {
+        const plan = data.split(":")[2] as "care" | "plus";
+        await ctx.answerCallbackQuery();
+        if (plan !== "care" && plan !== "plus") return;
+        try {
+          const u = store.startTrial(user.userId, plan);
+          await ctx.reply(
+            `🎁 *Пробный период активирован*\n\n` +
+              `Тариф «${PLANS[plan].title}» на *3 дня* — бесплатно.\n` +
+              `Действует до ${new Date(u.premiumUntil!).toLocaleDateString("ru-RU")}.\n\n` +
+              `Можно пользоваться всеми возможностями тарифа. Потом — останешься на free или оформишь подписку.`,
+            { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }
+          );
+        } catch (e) {
+          const err = e as Error & { message?: string };
+          await ctx.reply(
+            err.message || "Не удалось активировать пробный период.",
+            { reply_markup: plansKeyboard() }
+          );
+        }
+        return;
+      }
+
       if (data.startsWith("plan:")) {
         const plan = data.split(":")[1] as "free" | "care" | "plus";
         await ctx.answerCallbackQuery();
@@ -425,6 +448,7 @@ export function registerHandlers(bot: Bot) {
           store.updateUser(user.userId, {
             plan: "free",
             premiumUntil: undefined,
+            isTrial: false,
           });
           await ctx.reply(
             "Остаёшься на бесплатном тарифе — и этого уже достаточно для ежедневной опоры.",
@@ -432,7 +456,9 @@ export function registerHandlers(bot: Bot) {
           );
           return;
         }
-        await offerPlanPayment(ctx, user.userId, plan as PaidPlan);
+        if (plan === "care" || plan === "plus") {
+          await offerPlanPayment(ctx, user.userId, plan as PaidPlan);
+        }
         return;
       }
 
@@ -884,15 +910,15 @@ async function openPremium(ctx: Context) {
 
   const status =
     store.isPremium(user) && user.premiumUntil
-      ? `\n\nТвой тариф: ${PLANS[user.plan || "free"].title} до ${new Date(
-          user.premiumUntil
-        ).toLocaleDateString("ru-RU")}`
-      : "\n\nСейчас: бесплатный тариф.";
+      ? `\n\nТвой тариф: ${PLANS[user.plan || "free"].title}${
+          user.isTrial ? " (пробный)" : ""
+        } до ${new Date(user.premiumUntil).toLocaleDateString("ru-RU")}`
+      : "\n\nСейчас: бесплатный тариф. Можно взять 3 дня free на Заботу и/или Плюс.";
 
   await ctx.reply(
     `💎 Подписка careofme\n\n` +
       `Ежедневная опора: выгорание, тревога, сон — на русском.\n` +
-      `199–349 ₽/мес · дешевле психолога.\n\n` +
+      `Пробный период 3 дня · 199–349 ₽/мес · дешевле психолога.\n\n` +
       lines.join("\n\n") +
       `\n\n${payHint}${status}`,
     { reply_markup: plansKeyboard() }

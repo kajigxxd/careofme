@@ -121,6 +121,10 @@ export function coachKeyboard() {
 
 export function plansKeyboard() {
   return new InlineKeyboard()
+    .text("🎁 Забота · 3 дня бесплатно", "plan:trial:care")
+    .row()
+    .text("🎁 Плюс · 3 дня бесплатно", "plan:trial:plus")
+    .row()
     .text("🌱 Забота · 199 ₽", "plan:care")
     .row()
     .text("✨ Плюс · 349 ₽", "plan:plus")

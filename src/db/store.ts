@@ -83,6 +83,10 @@ export interface UserProfile {
   onboardingDone: boolean;
   premiumUntil?: string; // ISO
   plan?: "free" | "care" | "plus";
+  /** Active access came from free trial (not paid invoice) */
+  isTrial?: boolean;
+  /** One free trial per paid plan type */
+  trialUsed?: { care?: boolean; plus?: boolean };
   reminderHour?: number; // 0-23 local-ish
   lastCheckinDate?: string; // YYYY-MM-DD
   streak: number;
@@ -245,7 +249,77 @@ export class Store {
   isPremium(user: UserProfile): boolean {
     if (user.plan !== "care" && user.plan !== "plus") return false;
     if (!user.premiumUntil) return false;
-    return new Date(user.premiumUntil) > new Date();
+    const active = new Date(user.premiumUntil) > new Date();
+    if (!active && user.isTrial) {
+      // Trial expired — clear flag lazily
+      user.isTrial = false;
+      if (user.plan === "care" || user.plan === "plus") {
+        // keep plan label history but treat as free access
+      }
+      this.persist();
+    }
+    return active;
+  }
+
+  /** Free trial length in days (care & plus). */
+  static readonly TRIAL_DAYS = 3;
+
+  canStartTrial(
+    user: UserProfile,
+    plan: "care" | "plus"
+  ): { ok: true } | { ok: false; reason: string; message: string } {
+    if (this.isPremium(user)) {
+      return {
+        ok: false,
+        reason: "already_premium",
+        message: "У тебя уже есть активная подписка — пробный период сейчас не нужен",
+      };
+    }
+    if (user.trialUsed?.[plan]) {
+      return {
+        ok: false,
+        reason: "trial_used",
+        message:
+          plan === "plus"
+            ? "Пробный период «Плюс» уже был использован"
+            : "Пробный период «Забота» уже был использован",
+      };
+    }
+    return { ok: true };
+  }
+
+  trialEligible(user: UserProfile): { care: boolean; plus: boolean } {
+    const premium = this.isPremium(user);
+    return {
+      care: !premium && !user.trialUsed?.care,
+      plus: !premium && !user.trialUsed?.plus,
+    };
+  }
+
+  /**
+   * Activate a one-time free trial for care or plus (does not require payment).
+   */
+  startTrial(userId: number, plan: "care" | "plus"): UserProfile {
+    const user = this.getUser(userId);
+    if (!user) throw new Error("User not found");
+    const check = this.canStartTrial(user, plan);
+    if (!check.ok) {
+      const err = new Error(check.reason) as Error & {
+        reason: string;
+        message: string;
+      };
+      err.reason = check.reason;
+      err.message = check.message;
+      throw err;
+    }
+    const until = new Date();
+    until.setDate(until.getDate() + Store.TRIAL_DAYS);
+    user.plan = plan;
+    user.premiumUntil = until.toISOString();
+    user.isTrial = true;
+    user.trialUsed = { ...(user.trialUsed || {}), [plan]: true };
+    this.persist();
+    return user;
   }
 
   todayKey(user: UserProfile): string {
@@ -444,6 +518,8 @@ export class Store {
     base.setDate(base.getDate() + days);
     user.plan = plan;
     user.premiumUntil = base.toISOString();
+    // Paid activation ends trial flag
+    user.isTrial = false;
     if (payment) {
       user.paymentHistory = user.paymentHistory || [];
       // prevent double-credit same invoice

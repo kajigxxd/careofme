@@ -412,6 +412,14 @@ function onAppClick(e) {
     return;
   }
 
+  const trial = target.closest("[data-trial-plan]");
+  if (trial && !trial.disabled) {
+    e.preventDefault();
+    e.stopPropagation();
+    startTrial(trial.getAttribute("data-trial-plan"));
+    return;
+  }
+
   const pay = target.closest("[data-pay-plan]");
   if (pay && !pay.disabled) {
     e.preventDefault();
@@ -1384,6 +1392,39 @@ function hidePayModal() {
   $("#payModal")?.classList.add("hidden");
 }
 
+async function startTrial(plan) {
+  if (plan !== "care" && plan !== "plus") return;
+  if (state._trialing) return;
+  state._trialing = true;
+  try {
+    const res = await api("/plan/trial", { method: "POST", body: { plan } });
+    const until = res.premiumUntil
+      ? new Date(res.premiumUntil).toLocaleDateString("ru-RU")
+      : "";
+    toast(
+      res.message ||
+        `Пробный период на ${res.trialDays || 3} дня${until ? ` · до ${until}` : ""}`
+    );
+    if (tg?.HapticFeedback) {
+      try {
+        tg.HapticFeedback.notificationOccurred("success");
+      } catch (_) {}
+    }
+    await loadMe();
+    renderPlans();
+    go("home");
+  } catch (e) {
+    console.error("trial", e);
+    toast(e.data?.message || apiErrorMessage(e) || "Не удалось активировать пробный период");
+    if (e.data?.error === "already_premium") {
+      await loadMe();
+      renderPlans();
+    }
+  } finally {
+    state._trialing = false;
+  }
+}
+
 async function startCryptoPay(plan) {
   if (!plan) return;
   if (state._paying) return; // prevent double invoices
@@ -1495,24 +1536,40 @@ function updatePayBanner() {
       : "";
     const title =
       state.me.plans?.[state.me.plan]?.title || state.me.plan || "Pro";
+    const trialNote = state.me.isTrial ? " · пробный период" : "";
     banner.innerHTML = `
-      <div class="pay-banner-title">✅ Подписка активна</div>
-      <p class="muted">Тариф «${title}»${until ? ` до ${until}` : ""}</p>
+      <div class="pay-banner-title">${state.me.isTrial ? "🎁 Пробный период" : "✅ Подписка активна"}</div>
+      <p class="muted">Тариф «${title}»${trialNote}${until ? ` до ${until}` : ""}</p>
       <button class="linkish" data-go="premium" type="button">Управление →</button>`;
-    if (chip) chip.textContent = "✅ Pro";
+    if (chip) chip.textContent = state.me.isTrial ? "🎁 Pro" : "✅ Pro";
     return;
   }
 
+  const te = state.me?.trialEligible || {};
+  const trialRow =
+    te.care || te.plus
+      ? `<div class="pay-row" style="margin-bottom:8px">
+          ${
+            te.care
+              ? `<button class="btn ghost" type="button" data-trial-plan="care">🎁 Забота · 3 дня</button>`
+              : ""
+          }
+          ${
+            te.plus
+              ? `<button class="btn ghost" type="button" data-trial-plan="plus">🎁 Плюс · 3 дня</button>`
+              : ""
+          }
+        </div>
+        <p class="muted" style="margin:0 0 10px;font-size:0.82rem">Пробный период — 1 раз на каждый тариф, без карты и крипты.</p>`
+      : "";
+
   // Restore pay UI for free users
   banner.innerHTML = `
-    <div class="pay-banner-title">💎 Подписка · оплата криптой</div>
+    <div class="pay-banner-title">💎 Подписка · 3 дня бесплатно</div>
     <p class="muted" id="payBannerText">
-      ${
-        state.me?.cryptoPayConfigured
-          ? "USDT · фиксированный курс 81 ₽ · через Crypto Bot"
-          : "⚠️ Оплата временно недоступна"
-      }
+      Попробуй «Забота» или «Плюс» без оплаты, затем USDT через Crypto Bot.
     </p>
+    ${trialRow}
     <div class="pay-row">
       <button class="btn primary" type="button" data-pay-plan="care">
         Забота · 199 ₽
@@ -1538,14 +1595,17 @@ function renderPlans() {
   const info = $("#cryptoInfo");
   if (info) info.style.display = premium ? "none" : "block";
 
+  const te = state.me?.trialEligible || {};
+  const isTrial = !!state.me?.isTrial;
+
   // Always rebuild plan cards from live flags — never show legacy "demo" labels
   $("#plans").innerHTML =
     `<p class="muted" style="margin-bottom:10px">${
       premium
-        ? "Твоя подписка активна. Ниже — что входит в тарифы."
-        : cryptoOk
-          ? "Оплата в USDT через Crypto Bot (курс 81 ₽). На Mac после счёта нажми «Открыть Crypto Bot»."
-          : "⚠️ Оплата на сервере недоступна"
+        ? isTrial
+          ? "Сейчас пробный период. После окончания можно оплатить или остаться на free."
+          : "Твоя подписка активна. Ниже — что входит в тарифы."
+        : "Можно взять 3 дня бесплатно (1 раз на тариф), затем оплата USDT через Crypto Bot (курс 81 ₽)."
     }</p>` +
     Object.values(plans)
       .map((p) => {
@@ -1560,18 +1620,26 @@ function renderPlans() {
             }</button>`;
           }
         } else if (premium && current === p.id) {
-          btn = `<button class="btn ghost block" type="button" disabled>Активен</button>`;
+          btn = `<button class="btn ghost block" type="button" disabled>${
+            isTrial ? "Пробный · активен" : "Активен"
+          }</button>`;
         } else if (premium && current !== p.id) {
           btn = `<button class="btn primary block" type="button" data-pay-plan="${p.id}">💎 Перейти · ${p.price}</button>`;
-        } else if (cryptoOk) {
-          const usdt = p.id === "plus" ? "4.31 USDT" : "2.46 USDT";
-          btn = `<button class="btn primary block" type="button" data-pay-plan="${p.id}">💎 Оплатить · ${p.price} · ${usdt}</button>`;
         } else {
-          btn = `<button class="btn ghost block" type="button" disabled>Оплата недоступна</button>`;
+          const canTrial = p.id === "care" || p.id === "plus" ? te[p.id] : false;
+          const trialBtn = canTrial
+            ? `<button class="btn primary block" type="button" data-trial-plan="${p.id}" style="margin-bottom:8px">🎁 3 дня бесплатно</button>`
+            : state.me?.trialUsed?.[p.id]
+              ? `<p class="muted" style="margin:0 0 8px;font-size:0.82rem">Пробный период уже использован</p>`
+              : "";
+          const payBtn = cryptoOk
+            ? `<button class="btn ${canTrial ? "ghost" : "primary"} block" type="button" data-pay-plan="${p.id}">💎 Оплатить · ${p.price}</button>`
+            : `<button class="btn ghost block" type="button" disabled>Оплата недоступна</button>`;
+          btn = trialBtn + payBtn;
         }
         return `
       <div class="plan">
-        <h3>${p.title}${active && p.id !== "free" && premium ? " · сейчас" : ""}</h3>
+        <h3>${p.title}${active && p.id !== "free" && premium ? (isTrial ? " · пробный" : " · сейчас") : ""}</h3>
         <div class="price">${p.price}</div>
         <ul>${(p.perks || []).map((x) => `<li>${x}</li>`).join("")}</ul>
         ${btn}

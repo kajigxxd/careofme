@@ -32,6 +32,9 @@ export function planPriceLabel(plan: PaidPlan): string {
 
 export const PLAN_DURATION_DAYS = 30;
 
+/** Free trial length for care / plus (once per plan type) */
+export const TRIAL_DAYS = 3;
+
 export const PLAN_TITLES: Record<PaidPlan, string> = {
   care: "Забота",
   plus: "Плюс",

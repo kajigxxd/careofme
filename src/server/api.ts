@@ -36,6 +36,7 @@ import {
 import {
   planPriceUsdt,
   rubPerUsdt,
+  TRIAL_DAYS,
   type PaidPlan,
 } from "../payments/plans";
 import { checkPendingPayments } from "../payments/activate";
@@ -246,6 +247,7 @@ export function createApiRouter(): Router {
     const premium = store.isPremium(profile);
     const quota = store.canUseCoach(profile);
     const stats = store.weekStats(profile);
+    const trialEligible = store.trialEligible(profile);
     res.json({
       user: {
         id: profile.userId,
@@ -257,6 +259,13 @@ export function createApiRouter(): Router {
       plan: profile.plan || "free",
       premium,
       premiumUntil: profile.premiumUntil,
+      isTrial: Boolean(premium && profile.isTrial),
+      trialDays: TRIAL_DAYS,
+      trialEligible,
+      trialUsed: {
+        care: Boolean(profile.trialUsed?.care),
+        plus: Boolean(profile.trialUsed?.plus),
+      },
       streak: profile.streak,
       stats,
       coachQuota: quota,
@@ -601,6 +610,40 @@ export function createApiRouter(): Router {
     }
   });
 
+  /** Start free 3-day trial for care or plus (once per plan type) */
+  router.post("/plan/trial", (req, res) => {
+    const profile = (req as any).profile;
+    const plan = req.body?.plan as "care" | "plus";
+    if (plan !== "care" && plan !== "plus") {
+      return res.status(400).json({ error: "invalid_plan" });
+    }
+    try {
+      const updated = store.startTrial(profile.userId, plan);
+      console.log(
+        `trial: user=${profile.userId} plan=${plan} until=${updated.premiumUntil}`
+      );
+      res.json({
+        ok: true,
+        payment: "trial",
+        plan: updated.plan,
+        premium: true,
+        isTrial: true,
+        premiumUntil: updated.premiumUntil,
+        trialDays: TRIAL_DAYS,
+        message: `Пробный период «${PLANS[plan].title}» на ${TRIAL_DAYS} дня активирован`,
+      });
+    } catch (e) {
+      const err = e as Error & { reason?: string; message?: string };
+      const reason = err.reason || "trial_failed";
+      const status =
+        reason === "already_premium" || reason === "trial_used" ? 400 : 500;
+      res.status(status).json({
+        error: reason,
+        message: err.message || "Не удалось активировать пробный период",
+      });
+    }
+  });
+
   router.post("/plan", async (req, res) => {
     const profile = (req as any).profile;
     const plan = req.body?.plan as "free" | "care" | "plus";
@@ -619,6 +662,7 @@ export function createApiRouter(): Router {
         payment: "already_active",
         plan: profile.plan,
         premium: true,
+        isTrial: Boolean(profile.isTrial),
         premiumUntil: profile.premiumUntil,
       });
     }
@@ -637,12 +681,14 @@ export function createApiRouter(): Router {
       store.updateUser(profile.userId, {
         plan: "free",
         premiumUntil: undefined,
+        isTrial: false,
       });
       return res.json({
         ok: true,
         plan: "free",
         premium: false,
         premiumUntil: undefined,
+        isTrial: false,
       });
     }
 
