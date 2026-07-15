@@ -121,18 +121,51 @@ function go(screen) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function openFeelingsEditor() {
+  const areas = state.me?.focusAreas;
+  state.focusDraft = Array.isArray(areas) && areas.length ? [...areas] : ["general"];
+  go("onboarding");
+}
+
 function bindNav() {
   document.body.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-go]");
-    if (t) {
+    // Feelings editor
+    if (e.target.closest("[data-action='edit-feelings'], #editFeelingsBtn")) {
       e.preventDefault();
-      go(t.dataset.go);
+      e.stopPropagation();
+      openFeelingsEditor();
+      return;
     }
+
+    // Pay plan buttons
+    const pay = e.target.closest("[data-pay-plan]");
+    if (pay && !pay.disabled) {
+      e.preventDefault();
+      e.stopPropagation();
+      startCryptoPay(pay.getAttribute("data-pay-plan"));
+      return;
+    }
+
+    const freePlan = e.target.closest("[data-plan='free']");
+    if (freePlan && !freePlan.disabled) {
+      e.preventDefault();
+      e.stopPropagation();
+      startCryptoPay("free");
+      return;
+    }
+
     const coach = e.target.closest("[data-coach]");
     if (coach) {
       e.preventDefault();
       go("coach");
       sendCoach(coach.dataset.coach);
+      return;
+    }
+
+    const t = e.target.closest("[data-go]");
+    if (t) {
+      e.preventDefault();
+      go(t.dataset.go);
     }
   });
 }
@@ -191,13 +224,18 @@ function renderOnboarding() {
   const labels = state.me?.focusLabels || DEFAULT_FOCUS_LABELS;
   if (!state.focusDraft?.length) state.focusDraft = ["general"];
   const box = $("#focusChips");
+  if (!box) {
+    console.warn("focusChips missing");
+    return;
+  }
   box.innerHTML = "";
   for (const [id, label] of Object.entries(labels)) {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = label;
     b.classList.toggle("on", state.focusDraft.includes(id));
-    b.onclick = () => {
+    b.onclick = (ev) => {
+      ev.preventDefault();
       const i = state.focusDraft.indexOf(id);
       if (i >= 0) {
         if (state.focusDraft.length > 1) state.focusDraft.splice(i, 1);
@@ -208,25 +246,6 @@ function renderOnboarding() {
   }
 }
 
-$("#onboardingDone").onclick = async () => {
-  try {
-    await api("/onboarding", {
-      method: "POST",
-      body: { focusAreas: state.focusDraft },
-    });
-    toast("Сохранено");
-    await loadMe();
-    go("home");
-  } catch {
-    toast("Не удалось сохранить");
-  }
-};
-
-document.getElementById("editFeelingsBtn")?.addEventListener("click", () => {
-  state.focusDraft = [...(state.me?.focusAreas || ["general"])];
-  go("onboarding");
-});
-
 /* —— Check-in —— */
 function resetCheckinUI() {
   state.checkin = { step: 0, mood: null, energy: null, stress: null, sleep: null, note: "" };
@@ -236,27 +255,31 @@ function resetCheckinUI() {
 function renderCheckinStep() {
   const s = state.checkin.step;
   const meta = CHECKIN_STEPS[s];
-  $("#checkinTitle").textContent = meta.title;
-  $("#checkinHint").textContent = meta.hint;
+  if (!meta) return;
+  if ($("#checkinTitle")) $("#checkinTitle").textContent = meta.title;
+  if ($("#checkinHint")) $("#checkinHint").textContent = meta.hint;
 
   const dots = $("#checkinDots");
-  dots.innerHTML = CHECKIN_STEPS.map((_, i) => `<span class="${i <= s ? "on" : ""}"></span>`).join(
-    ""
-  );
+  if (dots) {
+    dots.innerHTML = CHECKIN_STEPS.map(
+      (_, i) => `<span class="${i <= s ? "on" : ""}"></span>`
+    ).join("");
+  }
 
   const scoreRow = $("#scoreRow");
   const note = $("#checkinNote");
   const next = $("#checkinNext");
   const back = $("#checkinBack");
+  if (!scoreRow || !next) return;
 
   if (meta.key === "note") {
     scoreRow.classList.add("hidden");
-    note.classList.remove("hidden");
-    note.value = state.checkin.note || "";
+    note?.classList.remove("hidden");
+    if (note) note.value = state.checkin.note || "";
     next.textContent = "Сохранить";
   } else {
     scoreRow.classList.remove("hidden");
-    note.classList.add("hidden");
+    note?.classList.add("hidden");
     next.textContent = meta.key === "sleep" ? "Далее / пропуск" : "Далее";
     const current = state.checkin[meta.key];
     scoreRow.innerHTML = "";
@@ -268,35 +291,29 @@ function renderCheckinStep() {
       b.onclick = () => {
         state.checkin[meta.key] = i;
         renderCheckinStep();
-        if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
+        try {
+          tg?.HapticFeedback?.impactOccurred?.("light");
+        } catch (_) {}
       };
       scoreRow.appendChild(b);
     }
   }
 
-  back.style.visibility = s === 0 ? "hidden" : "visible";
+  if (back) back.style.visibility = s === 0 ? "hidden" : "visible";
 }
 
-$("#checkinBack").onclick = () => {
-  if (state.checkin.step > 0) {
-    state.checkin.step -= 1;
-    renderCheckinStep();
-  }
-};
-
-$("#checkinNext").onclick = async () => {
+async function submitCheckin() {
   const s = state.checkin.step;
   const key = CHECKIN_STEPS[s].key;
 
   if (key === "note") {
-    state.checkin.note = $("#checkinNote").value.trim();
+    state.checkin.note = $("#checkinNote")?.value?.trim() || "";
   } else if (key !== "sleep" && !state.checkin[key]) {
     toast("Выбери оценку");
     return;
   }
 
   if (s < CHECKIN_STEPS.length - 1) {
-    // sleep can be skipped
     state.checkin.step += 1;
     renderCheckinStep();
     return;
@@ -318,7 +335,7 @@ $("#checkinNext").onclick = async () => {
   } catch {
     toast("Ошибка сохранения");
   }
-};
+}
 
 /* —— Practices —— */
 async function loadPractices() {
@@ -346,14 +363,14 @@ async function loadPractices() {
   }
 }
 
-$("#recommendPractice").onclick = async () => {
+async function onRecommendPractice() {
   try {
     const { practice } = await api("/practices-recommend");
     openPractice(practice.id, false);
   } catch {
     toast("Нет рекомендации");
   }
-};
+}
 
 async function openPractice(id, locked) {
   if (locked) {
@@ -378,7 +395,7 @@ async function openPractice(id, locked) {
   }
 }
 
-$("#practiceDone").onclick = async () => {
+async function onPracticeDone() {
   if (!state.currentPracticeId) return;
   try {
     await api(`/practices/${state.currentPracticeId}/done`, { method: "POST", body: {} });
@@ -388,11 +405,12 @@ $("#practiceDone").onclick = async () => {
   } catch {
     toast("Ошибка");
   }
-};
+}
 
 /* —— Stress —— */
 function renderStressUI() {
   const row = $("#stressScore");
+  if (!row) return;
   row.innerHTML = "";
   for (let i = 1; i <= 5; i++) {
     const b = document.createElement("button");
@@ -408,6 +426,7 @@ function renderStressUI() {
 
   const sources = state.me?.stressSources || [];
   const box = $("#stressSources");
+  if (!box) return;
   box.innerHTML = "";
   for (const s of sources) {
     const b = document.createElement("button");
@@ -422,7 +441,7 @@ function renderStressUI() {
   }
 }
 
-$("#stressSave").onclick = async () => {
+async function onStressSave() {
   if (!state.stressLevel) {
     toast("Выбери уровень");
     return;
@@ -433,35 +452,35 @@ $("#stressSave").onclick = async () => {
       body: {
         level: state.stressLevel,
         source: state.stressSource || undefined,
-        note: $("#stressNote").value.trim() || undefined,
+        note: $("#stressNote")?.value?.trim() || undefined,
       },
     });
     toast("Стресс записан");
     state.stressLevel = null;
     state.stressSource = null;
-    $("#stressNote").value = "";
+    if ($("#stressNote")) $("#stressNote").value = "";
     await loadMe();
     go("home");
   } catch {
     toast("Ошибка");
   }
-};
+}
 
 /* —— Journal —— */
 async function loadJournalPrompt() {
   try {
     const { prompt } = await api("/journal/prompt");
     state.journalPrompt = prompt;
-    $("#journalPrompt").textContent = prompt;
+    if ($("#journalPrompt")) $("#journalPrompt").textContent = prompt;
   } catch {
-    $("#journalPrompt").textContent = "Что сейчас сильнее всего влияет на твоё состояние?";
+    if ($("#journalPrompt"))
+      $("#journalPrompt").textContent =
+        "Что сейчас сильнее всего влияет на твоё состояние?";
   }
 }
 
-$("#journalRefresh").onclick = () => loadJournalPrompt();
-
-$("#journalSave").onclick = async () => {
-  const text = $("#journalText").value.trim();
+async function onJournalSave() {
+  const text = $("#journalText")?.value?.trim() || "";
   if (!text) {
     toast("Напиши хотя бы пару слов");
     return;
@@ -471,13 +490,13 @@ $("#journalSave").onclick = async () => {
       method: "POST",
       body: { text, prompt: state.journalPrompt },
     });
-    $("#journalText").value = "";
+    if ($("#journalText")) $("#journalText").value = "";
     toast("В дневнике 📝");
     go("home");
   } catch {
     toast("Ошибка");
   }
-};
+}
 
 /* —— Coach —— */
 function renderCoachMeta() {
@@ -530,11 +549,6 @@ async function sendCoach(text) {
   }
 }
 
-$("#coachForm").onsubmit = (e) => {
-  e.preventDefault();
-  sendCoach($("#coachInput").value);
-};
-
 /* —— Stats —— */
 async function loadStats() {
   try {
@@ -578,21 +592,32 @@ state.lastInvoiceId = null;
 state.lastPayUrl = null;
 
 function openPayUrl(url) {
-  if (!url) return;
-  // Crypto Bot deep links must use openTelegramLink
+  if (!url) {
+    toast("Нет ссылки на оплату");
+    return;
+  }
+  // Prefer Telegram deep link APIs; fall back safely
   try {
-    if (url.includes("t.me/") && tg?.openTelegramLink) {
+    if (typeof tg?.openTelegramLink === "function" && /t\.me\//i.test(url)) {
       tg.openTelegramLink(url);
       return;
     }
-    if (tg?.openLink) {
-      tg.openLink(url, { try_instant_view: false });
+  } catch (e) {
+    console.warn("openTelegramLink", e);
+  }
+  try {
+    if (typeof tg?.openLink === "function") {
+      tg.openLink(url);
       return;
     }
   } catch (e) {
-    console.warn(e);
+    console.warn("openLink", e);
   }
-  window.open(url, "_blank");
+  try {
+    window.location.href = url;
+  } catch (_) {
+    window.open(url, "_blank");
+  }
 }
 
 function showPayModal(plan, payUrl, invoiceId) {
@@ -803,38 +828,58 @@ function bindPayButtons(_root) {
 }
 
 /* —— boot —— */
-bindNav();
-bindPayButtons(document);
+function wireUi() {
+  bindNav();
 
-$("#checkPayBtn")?.addEventListener("click", () =>
-  verifyPayment(state.lastInvoiceId, false)
-);
-$("#payModalOpen")?.addEventListener("click", () => openPayUrl(state.lastPayUrl));
-$("#payModalCheck")?.addEventListener("click", () =>
-  verifyPayment(state.lastInvoiceId, false)
-);
-$("#payModalClose")?.addEventListener("click", hidePayModal);
+  const on = (id, ev, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(ev, fn);
+  };
 
-// Single delegated handler for pay buttons (no double-fire with onclick)
-document.body.addEventListener("click", (e) => {
-  const pay = e.target.closest("[data-pay-plan]");
-  if (pay && !pay.disabled) {
-    e.preventDefault();
-    e.stopPropagation();
-    startCryptoPay(pay.getAttribute("data-pay-plan"));
-    return;
+  on("onboardingDone", "click", async () => {
+    try {
+      if (!state.focusDraft?.length) state.focusDraft = ["general"];
+      await api("/onboarding", {
+        method: "POST",
+        body: { focusAreas: state.focusDraft },
+      });
+      toast("Сохранено");
+      await loadMe();
+      go("home");
+    } catch {
+      toast("Не удалось сохранить");
+    }
+  });
+
+  on("checkinBack", "click", () => {
+    if (state.checkin.step > 0) {
+      state.checkin.step -= 1;
+      renderCheckinStep();
+    }
+  });
+  on("checkinNext", "click", () => submitCheckin());
+  on("recommendPractice", "click", () => onRecommendPractice());
+  on("practiceDone", "click", () => onPracticeDone());
+  on("stressSave", "click", () => onStressSave());
+  on("journalRefresh", "click", () => loadJournalPrompt());
+  on("journalSave", "click", () => onJournalSave());
+  on("checkPayBtn", "click", () => verifyPayment(state.lastInvoiceId, false));
+  on("payModalOpen", "click", () => openPayUrl(state.lastPayUrl));
+  on("payModalCheck", "click", () => verifyPayment(state.lastInvoiceId, false));
+  on("payModalClose", "click", hidePayModal);
+
+  const form = $("#coachForm");
+  if (form) {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      sendCoach($("#coachInput")?.value || "");
+    });
   }
-  const free = e.target.closest("[data-plan]");
-  if (free && free.getAttribute("data-plan") === "free") {
-    e.preventDefault();
-    e.stopPropagation();
-    startCryptoPay("free");
-  }
-});
+}
 
-loadMe();
+wireUi();
+loadMe().catch((e) => console.error("loadMe", e));
 
-// Dev preview without Telegram
 if (!tg?.initData) {
   console.info("Preview mode: open via Telegram bot for full auth");
 }

@@ -98,13 +98,13 @@ export async function createPlanInvoice(opts: {
     opts.botUsername || process.env.BOT_USERNAME || "careofme_bot";
   const rate = rubPerUsdt();
 
-  // Fixed RUB→USDT rate: invoice in USDT so CryptoBot doesn't use market FX
+  // Fixed RUB→USDT rate: invoice in USDT (ASCII description avoids rare API quirks)
   const invoice = await apiCall<CryptoInvoice>("createInvoice", {
     currency_type: "crypto",
     asset: CRYPTO_INVOICE_ASSET,
     amount: usdt,
-    description: `careofme · «${title}» · ${rub} ₽ = ${usdt} USDT (курс ${rate}) · 30 дней`,
-    hidden_message: `Оплата прошла! Тариф «${title}» активирован в @${botUser}.`,
+    description: `careofme ${title} ${rub} RUB = ${usdt} USDT (rate ${rate}) 30d`,
+    hidden_message: `Paid. Plan ${title} active in @${botUser}.`,
     payload: buildInvoicePayload(opts.userId, opts.plan),
     paid_btn_name: "openBot",
     paid_btn_url: `https://t.me/${botUser}`,
