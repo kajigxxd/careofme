@@ -501,6 +501,49 @@ export class Store {
     this.persist();
   }
 
+  findUserByUsername(username: string): UserProfile | undefined {
+    const needle = username.replace(/^@/, "").toLowerCase();
+    if (!needle) return undefined;
+    return Object.values(this.data.users).find(
+      (u) => u.username?.toLowerCase() === needle
+    );
+  }
+
+  /**
+   * Admin / gift: full paid-tier access without Crypto Pay invoice.
+   * Extends from current premiumUntil if still active.
+   */
+  grantPlan(
+    userId: number,
+    plan: "care" | "plus",
+    days: number,
+    opts?: { replace?: boolean }
+  ): UserProfile {
+    const user = this.getUser(userId);
+    if (!user) throw new Error("User not found");
+    const d = Math.max(1, Math.min(3650, Math.floor(days)));
+    if (opts?.replace) {
+      const until = new Date();
+      until.setDate(until.getDate() + d);
+      user.plan = plan;
+      user.premiumUntil = until.toISOString();
+      user.isTrial = false;
+      this.persist();
+      return user;
+    }
+    return this.activatePlan(userId, plan, d);
+  }
+
+  revokePlan(userId: number): UserProfile {
+    const user = this.getUser(userId);
+    if (!user) throw new Error("User not found");
+    user.plan = "free";
+    user.premiumUntil = undefined;
+    user.isTrial = false;
+    this.persist();
+    return user;
+  }
+
   activatePlan(
     userId: number,
     plan: "care" | "plus",

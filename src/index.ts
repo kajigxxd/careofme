@@ -45,6 +45,7 @@ async function configureProfile(webappUrl?: string) {
       { command: "coach", description: "AI-коуч" },
       { command: "stats", description: "Статистика" },
       { command: "help", description: "Помощь" },
+      // grant/revoke hidden from public menu — still work if you type them
     ]);
   } catch (e) {
     console.warn("setMyCommands:", e);

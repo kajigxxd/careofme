@@ -74,6 +74,52 @@ function asScore(s: string): MoodScore | null {
   return null;
 }
 
+/** Telegram user ids allowed to gift subscriptions (comma-separated env) */
+function adminIds(): Set<number> {
+  const raw = process.env.ADMIN_TELEGRAM_IDS || process.env.ADMIN_USER_IDS || "";
+  return new Set(
+    raw
+      .split(/[,\s]+/)
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0)
+  );
+}
+
+function isAdmin(ctx: Context): boolean {
+  const id = ctx.from?.id;
+  if (!id) return false;
+  const set = adminIds();
+  if (!set.size) return false;
+  return set.has(id);
+}
+
+function resolveTargetUserId(
+  ctx: Context,
+  token?: string
+): { userId: number; label: string } | { error: string } {
+  const self = ctx.from?.id;
+  if (!token || token === "me" || token === "self") {
+    if (!self) return { error: "Не вижу твой Telegram id" };
+    return { userId: self, label: "ты" };
+  }
+  if (/^\d+$/.test(token)) {
+    const userId = Number(token);
+    return { userId, label: `id ${userId}` };
+  }
+  const byName = store.findUserByUsername(token);
+  if (byName) {
+    return {
+      userId: byName.userId,
+      label: byName.username ? `@${byName.username}` : `id ${byName.userId}`,
+    };
+  }
+  return {
+    error:
+      `Пользователь «${token}» ещё не писал боту (нет в базе). ` +
+      `Пусть нажмёт /start, либо укажи числовой Telegram id.`,
+  };
+}
+
 export function registerHandlers(bot: Bot) {
   bot.command("start", async (ctx) => {
     const user = ensureUser(ctx);
@@ -139,6 +185,117 @@ export function registerHandlers(bot: Bot) {
   bot.command("stats", async (ctx) => {
     ensureUser(ctx);
     await sendStats(ctx);
+  });
+
+  /**
+   * Admin: gift paid plan without Crypto Pay.
+   * /grant plus 30
+   * /grant care 90 790757219
+   * /grant plus 30 @username   (only if user already used the bot)
+   */
+  bot.command("grant", async (ctx) => {
+    ensureUser(ctx);
+    if (!isAdmin(ctx)) {
+      await ctx.reply(
+        "Команда только для админа. Задай ADMIN_TELEGRAM_IDS в Railway (свой Telegram id)."
+      );
+      return;
+    }
+    const parts = (ctx.message?.text || "")
+      .trim()
+      .split(/\s+/)
+      .slice(1); // drop /grant
+    // plan days [target]
+    const plan = (parts[0] || "").toLowerCase();
+    const days = Number(parts[1] || 30);
+    const targetTok = parts[2];
+
+    if (plan !== "care" && plan !== "plus") {
+      await ctx.reply(
+        "Выдача подписки (бесплатно, без оплаты):\n\n" +
+          "`/grant plus 30` — себе Плюс на 30 дней\n" +
+          "`/grant care 90 123456789` — человеку по Telegram id\n" +
+          "`/grant plus 30 @username` — если уже писал боту\n\n" +
+          "Снять: `/revoke` или `/revoke 123456789`",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+    if (!Number.isFinite(days) || days < 1) {
+      await ctx.reply("Укажи дни числом, например: `/grant plus 30`", {
+        parse_mode: "Markdown",
+      });
+      return;
+    }
+
+    const target = resolveTargetUserId(ctx, targetTok);
+    if ("error" in target) {
+      await ctx.reply(target.error);
+      return;
+    }
+
+    // Ensure user row exists (for self or numeric id)
+    let user = store.getUser(target.userId);
+    if (!user) {
+      if (target.userId === ctx.from?.id) {
+        user = ensureUser(ctx);
+      } else {
+        user = store.getOrCreateUser({
+          userId: target.userId,
+          chatId: target.userId,
+        });
+      }
+    }
+
+    const updated = store.grantPlan(target.userId, plan as "care" | "plus", days);
+    const until = updated.premiumUntil
+      ? new Date(updated.premiumUntil).toLocaleDateString("ru-RU")
+      : "—";
+    console.log(
+      `admin grant: by=${ctx.from?.id} → user=${target.userId} plan=${plan} days=${days}`
+    );
+    await ctx.reply(
+      `✅ Выдано *${PLANS[plan].title}* на *${Math.floor(days)}* дн.\n` +
+        `Кому: ${target.label}\n` +
+        `До: ${until}\n\n` +
+        `Это полный доступ тарифа, без крипты. Пусть откроет Mini App заново.`,
+      { parse_mode: "Markdown" }
+    );
+
+    // Notify recipient if different chat
+    if (target.userId !== ctx.from?.id) {
+      try {
+        await ctx.api.sendMessage(
+          target.userId,
+          `🎁 Тебе выдали тариф *${PLANS[plan].title}* до ${until}.\n` +
+            `Открой приложение careofme — доступ уже активен.`,
+          { parse_mode: "Markdown" }
+        );
+      } catch {
+        /* user may have never started bot / blocked */
+      }
+    }
+  });
+
+  bot.command("revoke", async (ctx) => {
+    ensureUser(ctx);
+    if (!isAdmin(ctx)) {
+      await ctx.reply("Команда только для админа (ADMIN_TELEGRAM_IDS).");
+      return;
+    }
+    const tok = (ctx.message?.text || "").trim().split(/\s+/)[1];
+    const target = resolveTargetUserId(ctx, tok);
+    if ("error" in target) {
+      await ctx.reply(target.error);
+      return;
+    }
+    if (!store.getUser(target.userId)) {
+      await ctx.reply("Пользователь не найден в базе.");
+      return;
+    }
+    store.revokePlan(target.userId);
+    console.log(`admin revoke: by=${ctx.from?.id} → user=${target.userId}`);
+    await ctx.reply(`✅ Подписка снята у ${target.label}. Снова free.`);
   });
 
   // Reply keyboard texts
