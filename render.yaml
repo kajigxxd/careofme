@@ -1,7 +1,7 @@
-# Deploy: https://render.com → New → Blueprint → this repo
+# https://dashboard.render.com → New → Blueprint → kajigxxd/careofme
 services:
   - type: web
-    name: berezhno
+    name: careofme
     runtime: node
     plan: free
     region: frankfurt
@@ -18,5 +18,6 @@ services:
       - key: XAI_MODEL
         value: grok-4.5
       - key: DATA_PATH
-        value: /tmp/berezhno-store.json
-      # WEBAPP_URL is optional — RENDER_EXTERNAL_URL is used automatically
+        value: /tmp/careofme-store.json
+      - key: USE_WEBHOOK
+        value: "1"

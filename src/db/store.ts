@@ -73,7 +73,7 @@ function defaultDataPath(): string {
     process.env.FLY_APP_NAME ||
     process.env.NODE_ENV === "production"
   ) {
-    return "/tmp/berezhno-store.json";
+    return "/tmp/careofme-store.json";
   }
   return path.join(process.cwd(), "data", "store.json");
 }

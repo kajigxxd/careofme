@@ -1,0 +1,22 @@
+# Pings production every 10 min so free-tier hosts stay warm (optional).
+# Set secret KEEP_ALIVE_URL = https://your-app.onrender.com/ping
+name: Keep-alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping production
+        env:
+          URL: ${{ secrets.KEEP_ALIVE_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "KEEP_ALIVE_URL not set — skip"
+            exit 0
+          fi
+          curl -fsS --max-time 30 "$URL" || curl -fsS --max-time 60 "${URL%/ping}/health" || true

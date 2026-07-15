@@ -1,10 +1,10 @@
-import express from "express";
+import express, { type Express, type Request, type Response } from "express";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
 import { createApiRouter } from "./api";
 
-export function createHttpServer() {
+export function createHttpServer(): Express {
   const app = express();
   app.set("trust proxy", 1);
   app.use(
@@ -13,25 +13,32 @@ export function createHttpServer() {
       allowedHeaders: ["Content-Type", "X-Telegram-Init-Data"],
     })
   );
-  app.use(express.json({ limit: "256kb" }));
+  // raw body not needed; json for API + webhook
+  app.use(express.json({ limit: "512kb" }));
 
-  app.get("/health", (_req, res) => {
+  app.get("/health", (_req: Request, res: Response) => {
     res.json({
       ok: true,
-      service: "berezhno",
+      service: "careofme",
       ts: new Date().toISOString(),
       hasBotToken: Boolean(process.env.BOT_TOKEN),
       hasWebappUrl: Boolean(
         process.env.WEBAPP_URL ||
           process.env.RENDER_EXTERNAL_URL ||
-          process.env.RAILWAY_PUBLIC_DOMAIN
+          process.env.RAILWAY_PUBLIC_DOMAIN ||
+          process.env.FLY_APP_NAME
       ),
+      uptimeSec: Math.floor(process.uptime()),
     });
+  });
+
+  // Keep-alive for free tiers that sleep
+  app.get("/ping", (_req, res) => {
+    res.type("text").send("pong");
   });
 
   app.use("/api", createApiRouter());
 
-  // Resolve webapp both from cwd (dev) and next to dist (production)
   const candidates = [
     path.join(process.cwd(), "webapp"),
     path.join(__dirname, "..", "..", "webapp"),
@@ -54,10 +61,16 @@ export function createHttpServer() {
     })
   );
 
-  // SPA fallback (Express 5 compatible — no bare «*»)
   app.use((req, res, next) => {
     if (req.method !== "GET" && req.method !== "HEAD") return next();
-    if (req.path.startsWith("/api") || req.path === "/health") return next();
+    if (
+      req.path.startsWith("/api") ||
+      req.path === "/health" ||
+      req.path === "/ping" ||
+      req.path.startsWith("/telegram/")
+    ) {
+      return next();
+    }
     const index = path.join(webRoot, "index.html");
     if (!fs.existsSync(index)) {
       return res
@@ -71,12 +84,11 @@ export function createHttpServer() {
   return app;
 }
 
-export function startHttpServer(port: number) {
-  const app = createHttpServer();
-  return new Promise<{ port: number }>((resolve, reject) => {
+export function listenHttp(app: Express, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
     const server = app.listen(port, "0.0.0.0", () => {
       console.log(`🌐 HTTP :${port}`);
-      resolve({ port });
+      resolve();
     });
     server.on("error", reject);
   });
