@@ -176,11 +176,9 @@ export class Store {
   }
 
   isPremium(user: UserProfile): boolean {
-    if (user.plan === "care" || user.plan === "plus") {
-      if (!user.premiumUntil) return true;
-      return new Date(user.premiumUntil) > new Date();
-    }
-    return false;
+    if (user.plan !== "care" && user.plan !== "plus") return false;
+    if (!user.premiumUntil) return false;
+    return new Date(user.premiumUntil) > new Date();
   }
 
   todayKey(user: UserProfile): string {

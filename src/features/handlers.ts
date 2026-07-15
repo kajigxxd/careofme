@@ -429,12 +429,12 @@ export function registerHandlers(bot: Bot) {
         if (ok) {
           const u = store.getUser(user.userId)!;
           await ctx.reply(
-            `✅ Оплата найдена. Тариф *${PLANS[u.plan || plan].title}* активен` +
+            `✅ Оплата найдена. Тариф «${PLANS[u.plan || plan].title}» активен` +
               (u.premiumUntil
                 ? ` до ${new Date(u.premiumUntil).toLocaleDateString("ru-RU")}`
                 : "") +
               `.`,
-            { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }
+            { reply_markup: mainMenuKeyboard() }
           );
         } else {
           await ctx.reply(
@@ -443,28 +443,6 @@ export function registerHandlers(bot: Bot) {
             { reply_markup: plansKeyboard() }
           );
         }
-        return;
-      }
-
-      if (data.startsWith("plan_activate:")) {
-        if (process.env.ALLOW_DEMO_PAY !== "1") {
-          await ctx.answerCallbackQuery({ text: "Демо выключено" });
-          await offerPlanPayment(
-            ctx,
-            user.userId,
-            data.split(":")[1] as PaidPlan
-          );
-          return;
-        }
-        const plan = data.split(":")[1] as PaidPlan;
-        const updated = store.activatePlan(user.userId, plan, PLAN_DURATION_DAYS);
-        await ctx.answerCallbackQuery({ text: "Подписка активна ✨" });
-        await ctx.reply(
-          `Готово (демо). Тариф *${PLANS[plan].title}* до ${new Date(
-            updated.premiumUntil!
-          ).toLocaleDateString("ru-RU")}.`,
-          { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }
-        );
         return;
       }
 
@@ -610,10 +588,9 @@ async function finishCheckin(
       `Энергия ${p.energy}/5 ${bar(p.energy)}\n` +
       `Стресс ${p.stress}/5 ${bar(p.stress)}\n` +
       (p.sleep ? `Сон ${p.sleep}/5 ${bar(p.sleep)}\n` : "") +
-      (note ? `\n_«${note.slice(0, 120)}»_\n` : "") +
-      `\n🔥 Серия: *${pluralDays(user.streak)}*\n\n${tip}`,
+      (note ? `\n«${note.slice(0, 120)}»\n` : "") +
+      `\n🔥 Серия: ${pluralDays(user.streak)}\n\n${tip}`,
     {
-      parse_mode: "Markdown",
       reply_markup: afterCheckinKeyboard(),
     }
   );
@@ -782,8 +759,8 @@ async function handleCoachMessage(
   setFlow(userId, "coach_chat");
 
   const left = store.canUseCoach(store.getUser(userId)!).remaining;
-  await ctx.reply(`${reply}\n\n_Осталось сообщений сегодня: ${left}_`, {
-    parse_mode: "Markdown",
+  // Без Markdown — AI-текст часто ломает parse_mode
+  await ctx.reply(`${reply}\n\nОсталось сообщений сегодня: ${left}`, {
     reply_markup: coachKeyboard(),
   });
 }
@@ -822,28 +799,28 @@ async function openPremium(ctx: Context) {
   const lines = (Object.keys(PLANS) as (keyof typeof PLANS)[]).map((k) => {
     const p = PLANS[k];
     return (
-      `*${p.title}* — ${p.price}\n` + p.perks.map((x) => `  • ${x}`).join("\n")
+      `${p.title} — ${p.price}\n` + p.perks.map((x) => `  • ${x}`).join("\n")
     );
   });
 
   const payHint = isCryptoPayConfigured()
-    ? "Оплата: *крипта через @CryptoBot* (USDT, TON, BTC, ETH…), сумма в ₽."
-    : "Крипто-оплата подключается (Crypto Pay). Пока доступен демо-режим, если включён.";
+    ? "Оплата: крипта через @CryptoBot (USDT, TON, BTC, ETH…), сумма в ₽."
+    : "⚠️ Оплата временно недоступна — CRYPTO_PAY_TOKEN не настроен.";
 
   const status =
     store.isPremium(user) && user.premiumUntil
-      ? `\n\nТвой тариф: *${PLANS[user.plan || "free"].title}* до ${new Date(
+      ? `\n\nТвой тариф: ${PLANS[user.plan || "free"].title} до ${new Date(
           user.premiumUntil
         ).toLocaleDateString("ru-RU")}`
-      : "";
+      : "\n\nСейчас: бесплатный тариф.";
 
   await ctx.reply(
-    `💎 *Подписка careofme*\n\n` +
+    `💎 Подписка careofme\n\n` +
       `Ежедневная опора: выгорание, тревога, сон — на русском.\n` +
-      `*199–349 ₽/мес* · дешевле психолога.\n\n` +
+      `199–349 ₽/мес · дешевле психолога.\n\n` +
       lines.join("\n\n") +
       `\n\n${payHint}${status}`,
-    { parse_mode: "Markdown", reply_markup: plansKeyboard() }
+    { reply_markup: plansKeyboard() }
   );
 }
 
@@ -855,16 +832,10 @@ async function offerPlanPayment(
   const info = PLANS[plan];
   if (!isCryptoPayConfigured()) {
     await ctx.reply(
-      `*${info.title}* — ${info.price}\n\n` +
+      `${info.title} — ${info.price}\n\n` +
         info.perks.map((p) => `• ${p}`).join("\n") +
-        `\n\n_Крипто-оплата ещё не настроена (нужен CRYPTO_PAY_TOKEN от @CryptoBot → Crypto Pay → Create App)._` +
-        (process.env.ALLOW_DEMO_PAY === "1"
-          ? "\n\nДоступна демо-активация на 30 дней."
-          : ""),
-      {
-        parse_mode: "Markdown",
-        reply_markup: confirmPlanKeyboard(plan),
-      }
+        `\n\n⚠️ Оплата криптой не настроена на сервере.`,
+      { reply_markup: plansKeyboard() }
     );
     return;
   }
@@ -878,14 +849,15 @@ async function offerPlanPayment(
     });
     store.trackInvoice(userId, inv.invoice_id, plan);
     const url =
-      inv.bot_invoice_url || inv.mini_app_invoice_url || inv.pay_url || "";
+      inv.bot_invoice_url || inv.pay_url || inv.mini_app_invoice_url || "";
     await ctx.reply(
-      `*${info.title}* — ${info.price} / 30 дней\n\n` +
+      `${info.title} — ${info.price} / 30 дней\n\n` +
         info.perks.map((p) => `• ${p}`).join("\n") +
-        `\n\n💎 Оплата в *Crypto Bot* (USDT / TON / BTC / ETH…).\n` +
-        `После оплаты нажми «Я оплатил(а)» или подожди авто-активацию.`,
+        `\n\n💎 Оплата в Crypto Bot (USDT / TON / BTC / ETH…).\n` +
+        `1) Нажми «Оплатить криптой»\n` +
+        `2) Подтверди платёж\n` +
+        `3) Вернись и нажми «Я оплатил(а)»`,
       {
-        parse_mode: "Markdown",
         reply_markup: url
           ? payUrlKeyboard(url, plan)
           : confirmPlanKeyboard(plan),
@@ -894,7 +866,7 @@ async function offerPlanPayment(
   } catch (e) {
     console.error("create invoice", e);
     await ctx.reply(
-      "Не удалось создать счёт Crypto Pay. Попробуй позже или напиши в поддержку.",
+      "Не удалось создать счёт Crypto Pay. Попробуй через 1 минуту.",
       { reply_markup: plansKeyboard() }
     );
   }

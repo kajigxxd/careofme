@@ -329,22 +329,6 @@ export function createApiRouter(): Router {
       }
     }
 
-    // Demo only when allowed
-    if (process.env.ALLOW_DEMO_PAY === "1") {
-      const updated = store.activatePlan(
-        profile.userId,
-        plan as PaidPlan,
-        PLAN_DURATION_DAYS
-      );
-      return res.json({
-        ok: true,
-        payment: "demo",
-        plan: updated.plan,
-        premium: store.isPremium(updated),
-        premiumUntil: updated.premiumUntil,
-      });
-    }
-
     return res.status(503).json({
       error: "payments_not_configured",
       message: "Задайте CRYPTO_PAY_TOKEN (@CryptoBot → Crypto Pay)",

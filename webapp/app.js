@@ -593,16 +593,21 @@ function hidePayModal() {
 }
 
 async function startCryptoPay(plan) {
+  if (!plan) return;
   if (plan === "free") {
     try {
       await api("/plan", { method: "POST", body: { plan: "free" } });
       toast("Бесплатный тариф");
       await loadMe();
       renderPlans();
-      updatePayBanner();
     } catch {
       toast("Ошибка");
     }
+    return;
+  }
+
+  if (!state.me?.cryptoPayConfigured) {
+    toast("Оплата временно недоступна");
     return;
   }
 
@@ -611,44 +616,40 @@ async function startCryptoPay(plan) {
     const res = await api("/plan", { method: "POST", body: { plan } });
     if (res.payment === "crypto" && res.payUrl) {
       showPayModal(plan, res.payUrl, res.invoiceId);
-      openPayUrl(res.payUrl);
-      startPayPolling(res.invoiceId);
-      return;
-    }
-    if (res.payment === "demo" || res.premium) {
-      toast("Тариф активен ✨");
-      await loadMe();
-      renderPlans();
-      updatePayBanner();
+      // slight delay so modal paints before leaving Mini App
+      setTimeout(() => openPayUrl(res.payUrl), 250);
+      startPayPolling(res.invoiceId, true);
       return;
     }
     toast("Не удалось создать оплату");
   } catch (e) {
     console.error(e);
     if (e.data?.error === "payments_not_configured") {
-      toast("Крипто-оплата не настроена на сервере");
+      toast("Крипто-оплата не настроена");
     } else if (e.data?.error === "invoice_failed") {
-      toast("Crypto Bot не создал счёт. Попробуй позже");
+      toast("Crypto Bot не создал счёт");
+    } else if (e.status === 401) {
+      toast("Открой app из @careofme_bot");
     } else {
       toast("Ошибка оплаты");
     }
   }
 }
 
-function startPayPolling(invoiceId) {
+function startPayPolling(invoiceId, silent = true) {
   let n = 0;
   if (state._payTimer) clearInterval(state._payTimer);
   state._payTimer = setInterval(async () => {
     n++;
-    const ok = await verifyPayment(invoiceId);
-    if (ok || n > 30) {
+    const ok = await verifyPayment(invoiceId, silent);
+    if (ok || n > 40) {
       clearInterval(state._payTimer);
       state._payTimer = null;
     }
-  }, 4000);
+  }, 5000);
 }
 
-async function verifyPayment(invoiceId) {
+async function verifyPayment(invoiceId, silent = false) {
   try {
     const st = await api("/plan/check", {
       method: "POST",
@@ -659,13 +660,12 @@ async function verifyPayment(invoiceId) {
       hidePayModal();
       await loadMe();
       renderPlans();
-      updatePayBanner();
       return true;
     }
-    toast("Пока не видно оплату — подожди и нажми снова");
+    if (!silent) toast("Оплата ещё не пришла — подожди 10–20 сек");
     return false;
   } catch {
-    toast("Не удалось проверить");
+    if (!silent) toast("Не удалось проверить");
     return false;
   }
 }
@@ -674,21 +674,42 @@ function updatePayBanner() {
   const banner = $("#payBanner");
   const chip = $("#payChip");
   if (!banner) return;
+
   if (state.me?.premium) {
     const until = state.me.premiumUntil
       ? new Date(state.me.premiumUntil).toLocaleDateString("ru-RU")
       : "";
+    const title =
+      state.me.plans?.[state.me.plan]?.title || state.me.plan || "Pro";
     banner.innerHTML = `
       <div class="pay-banner-title">✅ Подписка активна</div>
-      <p class="muted">Тариф «${state.me.plans?.[state.me.plan]?.title || state.me.plan}»${
-        until ? ` до ${until}` : ""
-      }</p>
+      <p class="muted">Тариф «${title}»${until ? ` до ${until}` : ""}</p>
       <button class="linkish" data-go="premium" type="button">Управление →</button>`;
     if (chip) chip.textContent = "✅ Pro";
-  } else if (state.me && state.me.cryptoPayConfigured === false) {
-    $("#payBannerText").textContent =
-      "Крипто-оплата на сервере выключена. Напиши в поддержку.";
+    return;
   }
+
+  // Restore pay UI for free users
+  banner.innerHTML = `
+    <div class="pay-banner-title">💎 Подписка · оплата криптой</div>
+    <p class="muted" id="payBannerText">
+      ${
+        state.me?.cryptoPayConfigured
+          ? "USDT · TON · BTC · ETH · сумма в ₽ через Crypto Bot"
+          : "⚠️ Оплата временно недоступна"
+      }
+    </p>
+    <div class="pay-row">
+      <button class="btn primary" type="button" data-pay-plan="care">
+        Забота · 199 ₽
+      </button>
+      <button class="btn primary" type="button" data-pay-plan="plus">
+        Плюс · 349 ₽
+      </button>
+    </div>
+    <button class="linkish" data-go="premium" type="button">Все тарифы и детали →</button>`;
+  if (chip) chip.textContent = "💎 Pro";
+  bindPayButtons(banner);
 }
 
 function renderPlans() {
@@ -699,52 +720,64 @@ function renderPlans() {
   }
   const current = state.me.plan || "free";
   const cryptoOk = !!state.me.cryptoPayConfigured;
+  const premium = !!state.me.premium;
   const info = $("#cryptoInfo");
-  if (info) {
-    info.style.display = state.me.premium ? "none" : "block";
-  }
+  if (info) info.style.display = premium ? "none" : "block";
 
   $("#plans").innerHTML =
     `<p class="muted" style="margin-bottom:10px">${
-      cryptoOk
-        ? "Ниже — детали тарифов. Кнопки оплаты криптой — сверху 👆"
-        : "⚠️ CRYPTO_PAY не активен на сервере"
+      premium
+        ? "Твоя подписка активна. Ниже — что входит в тарифы."
+        : cryptoOk
+          ? "Оплата только криптой через Crypto Bot. Кнопки сверху 👆"
+          : "⚠️ Оплата на сервере недоступна"
     }</p>` +
     Object.values(plans)
       .map((p) => {
-        const active =
-          current === p.id && (p.id === "free" || state.me.premium);
+        const active = premium
+          ? current === p.id
+          : p.id === "free" && current === "free";
+        let btn = "";
+        if (p.id === "free") {
+          btn = premium
+            ? ""
+            : `<button class="btn ghost block" type="button" data-plan="free">${
+                active ? "Текущий тариф" : "Остаться на free"
+              }</button>`;
+        } else if (premium && current === p.id) {
+          btn = `<button class="btn ghost block" type="button" disabled>Активен</button>`;
+        } else if (!premium && cryptoOk) {
+          btn = `<button class="btn primary block" type="button" data-pay-plan="${p.id}">💎 Оплатить криптой · ${p.price}</button>`;
+        } else if (!premium) {
+          btn = `<button class="btn ghost block" type="button" disabled>Недоступно</button>`;
+        }
         return `
       <div class="plan">
-        <h3>${p.title}${active ? " · сейчас" : ""}</h3>
+        <h3>${p.title}${active && p.id !== "free" ? " · сейчас" : ""}</h3>
         <div class="price">${p.price}</div>
         <ul>${p.perks.map((x) => `<li>${x}</li>`).join("")}</ul>
-        ${
-          p.id === "free"
-            ? `<button class="btn ghost block" data-plan="free" type="button">${
-                active ? "Активен" : "Остаться на free"
-              }</button>`
-            : active
-              ? `<button class="btn ghost block" type="button" disabled>Активен</button>`
-              : `<button class="btn primary block" data-pay-plan="${p.id}" type="button">💎 Оплатить криптой · ${p.price}</button>`
-        }
+        ${btn}
       </div>`;
       })
       .join("");
 
-  bindPayButtons(document);
+  bindPayButtons($("#plans"));
+  bindPayButtons($("#cryptoInfo") || document);
 }
 
-function bindPayButtons(root = document) {
+function bindPayButtons(root) {
+  if (!root) return;
   root.querySelectorAll("[data-pay-plan]").forEach((btn) => {
     btn.onclick = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       startCryptoPay(btn.getAttribute("data-pay-plan"));
     };
   });
   root.querySelectorAll("[data-plan]").forEach((btn) => {
     btn.onclick = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       startCryptoPay(btn.getAttribute("data-plan"));
     };
   });
@@ -754,10 +787,23 @@ function bindPayButtons(root = document) {
 bindNav();
 bindPayButtons(document);
 
-$("#checkPayBtn")?.addEventListener("click", () => verifyPayment());
+$("#checkPayBtn")?.addEventListener("click", () =>
+  verifyPayment(state.lastInvoiceId, false)
+);
 $("#payModalOpen")?.addEventListener("click", () => openPayUrl(state.lastPayUrl));
-$("#payModalCheck")?.addEventListener("click", () => verifyPayment());
+$("#payModalCheck")?.addEventListener("click", () =>
+  verifyPayment(state.lastInvoiceId, false)
+);
 $("#payModalClose")?.addEventListener("click", hidePayModal);
+
+// Event delegation as backup for dynamically rebuilt pay buttons
+document.body.addEventListener("click", (e) => {
+  const pay = e.target.closest("[data-pay-plan]");
+  if (pay && !pay.disabled) {
+    e.preventDefault();
+    startCryptoPay(pay.getAttribute("data-pay-plan"));
+  }
+});
 
 loadMe();
 

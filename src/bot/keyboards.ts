@@ -129,10 +129,8 @@ export function confirmPlanKeyboard(plan: "care" | "plus", payUrl?: string) {
   if (payUrl) {
     kb.url("💎 Оплатить криптой", payUrl).row();
     kb.text("🔄 Проверить оплату", `pay_check:${plan}`).row();
-  } else if (process.env.ALLOW_DEMO_PAY === "1") {
-    kb.text("✅ Активировать (демо)", `plan_activate:${plan}`).row();
   } else {
-    kb.text("⚙️ Оплата скоро", "nav:premium").row();
+    kb.text("↻ Создать счёт снова", `plan:${plan}`).row();
   }
   kb.text("Отмена", "nav:premium");
   return kb;
