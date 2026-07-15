@@ -13,7 +13,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715f" />
+    <link rel="stylesheet" href="./styles.css?v=20260715g" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -44,6 +44,16 @@
           <button class="chip" id="streakChip" type="button">🔥 0</button>
         </div>
       </header>
+
+      <div id="authBanner" class="auth-banner hidden" role="alert">
+        <p id="authBannerText">
+          Открой приложение из бота <strong>@careofme_bot</strong> — команда
+          /start или /app, либо кнопка меню. Ссылка из браузера не сработает.
+        </p>
+        <button type="button" class="btn primary small" id="authRetryBtn">
+          Попробовать снова
+        </button>
+      </div>
 
       <main id="screens">
         <!-- HOME -->
@@ -372,6 +382,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715f" type="module"></script>
+    <script src="./app.js?v=20260715g" type="module"></script>
   </body>
 </html>

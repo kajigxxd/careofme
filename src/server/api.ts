@@ -5,7 +5,8 @@ import {
   type FocusArea,
   type MoodScore,
 } from "../db/store";
-import { validateInitData } from "./auth";
+import { validateInitDataDetailed } from "./auth";
+import { createSession, getSession } from "./sessions";
 import {
   PRACTICES,
   getPractice,
@@ -35,28 +36,64 @@ function getToken() {
   return process.env.BOT_TOKEN || "";
 }
 
+function extractBearer(req: Request): string {
+  const auth = req.header("authorization") || "";
+  if (auth.toLowerCase().startsWith("bearer ")) {
+    return auth.slice(7).trim();
+  }
+  if (typeof req.header("x-session-token") === "string") {
+    return (req.header("x-session-token") as string).trim();
+  }
+  if (typeof req.body?.sessionToken === "string") {
+    return req.body.sessionToken.trim();
+  }
+  if (typeof req.query?.sessionToken === "string") {
+    return String(req.query.sessionToken).trim();
+  }
+  return "";
+}
+
 function extractInitData(req: Request): string {
+  // Prefer body (most reliable on mobile WebViews — not mangled by proxies)
+  if (typeof req.body?.initData === "string" && req.body.initData.trim()) {
+    return req.body.initData.trim();
+  }
+  if (typeof req.query?.initData === "string" && req.query.initData) {
+    return String(req.query.initData);
+  }
+
   const header =
     (req.header("x-telegram-init-data") as string) ||
     (req.header("X-Telegram-Init-Data") as string) ||
     "";
-  if (header) return header;
+  if (header.trim()) return header.trim();
 
   const auth = req.header("authorization") || "";
   if (auth.toLowerCase().startsWith("tma ")) {
     return auth.slice(4).trim();
   }
-
-  if (typeof req.body?.initData === "string" && req.body.initData) {
-    return req.body.initData;
-  }
-  if (typeof req.query?.initData === "string" && req.query.initData) {
-    return req.query.initData;
-  }
   return "";
 }
 
 function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  // 1) Short session token (preferred after /api/auth)
+  const bearer = extractBearer(req);
+  if (bearer) {
+    const session = getSession(bearer);
+    if (session) {
+      const profile = store.getUser(session.userId);
+      if (profile) {
+        (req as any).tgUser = {
+          id: profile.userId,
+          first_name: profile.firstName,
+          username: profile.username,
+        };
+        (req as any).profile = profile;
+        return next();
+      }
+    }
+  }
+
   const initData = extractInitData(req);
 
   // Browser preview without Telegram
@@ -74,26 +111,38 @@ function authMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!initData) {
     return res.status(401).json({
       error: "missing_init_data",
-      message: "Открой приложение из Telegram-бота",
+      message:
+        "Открой приложение из бота @careofme_bot (кнопка меню или /app). Не открывай ссылку в браузере.",
     });
   }
 
-  const validated = validateInitData(initData, getToken());
-  if (!validated) {
+  const validated = validateInitDataDetailed(initData, getToken());
+  if (!validated.ok) {
+    console.warn(
+      `auth: initData rejected reason=${validated.reason} path=${req.path} len=${initData.length}`
+    );
+    const message =
+      validated.reason === "expired"
+        ? "Сессия устарела — закрой приложение и открой снова из @careofme_bot"
+        : validated.reason === "bad_hash"
+          ? "Не удалось проверить вход. Открой именно из @careofme_bot (не из другого бота и не по ссылке в Safari)."
+          : "Открой приложение из бота @careofme_bot";
     return res.status(401).json({
       error: "invalid_init_data",
-      message: "Сессия устарела — закрой и открой приложение из бота",
+      reason: validated.reason,
+      message,
     });
   }
 
+  const v = validated.data;
   const profile = store.getOrCreateUser({
-    userId: validated.user.id,
-    chatId: validated.user.id,
-    username: validated.user.username,
-    firstName: validated.user.first_name,
+    userId: v.user.id,
+    chatId: v.user.id,
+    username: v.user.username,
+    firstName: v.user.first_name,
   });
 
-  (req as any).tgUser = validated.user;
+  (req as any).tgUser = v.user;
   (req as any).profile = profile;
   next();
 }
@@ -106,6 +155,82 @@ function asScore(n: unknown): MoodScore | null {
 
 export function createApiRouter(): Router {
   const router = Router();
+
+  /**
+   * Exchange Telegram initData (body only — reliable on mobile) for a short session token.
+   * Must stay BEFORE authMiddleware.
+   */
+  router.post("/auth", (req, res) => {
+    const initData =
+      typeof req.body?.initData === "string" ? req.body.initData.trim() : "";
+
+    if (!initData && process.env.WEBAPP_DEV_SKIP_AUTH === "1") {
+      const user = store.getOrCreateUser({
+        userId: 1,
+        chatId: 1,
+        firstName: "Гость",
+      });
+      const { token, exp } = createSession(user.userId);
+      return res.json({
+        ok: true,
+        token,
+        exp,
+        user: { id: user.userId, firstName: user.firstName },
+      });
+    }
+
+    if (!initData) {
+      return res.status(401).json({
+        error: "missing_init_data",
+        message:
+          "Нет данных Telegram. Открой Mini App из @careofme_bot → /app или кнопку меню.",
+        hasTelegramScript: true,
+      });
+    }
+
+    const validated = validateInitDataDetailed(initData, getToken());
+    if (!validated.ok) {
+      console.warn(`auth/login failed reason=${validated.reason} len=${initData.length}`);
+      return res.status(401).json({
+        error: "invalid_init_data",
+        reason: validated.reason,
+        message:
+          validated.reason === "bad_hash"
+            ? "Подпись не совпала. Нужен именно @careofme_bot (проверь, что не старый бот)."
+            : "Не удалось войти. Закрой приложение и открой из @careofme_bot.",
+      });
+    }
+
+    const v = validated.data;
+    const profile = store.getOrCreateUser({
+      userId: v.user.id,
+      chatId: v.user.id,
+      username: v.user.username,
+      firstName: v.user.first_name,
+    });
+    const { token, exp } = createSession(profile.userId);
+    console.log(`auth: session ok user=${profile.userId}`);
+    res.json({
+      ok: true,
+      token,
+      exp,
+      user: {
+        id: profile.userId,
+        firstName: profile.firstName,
+        username: profile.username,
+      },
+    });
+  });
+
+  // Lightweight probe (no secrets) — helps debug tester issues
+  router.get("/auth/ping", (_req, res) => {
+    res.json({
+      ok: true,
+      botConfigured: Boolean(getToken()),
+      ts: new Date().toISOString(),
+    });
+  });
+
   router.use(authMiddleware);
 
   router.get("/me", (req, res) => {

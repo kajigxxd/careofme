@@ -70,6 +70,49 @@ function apiBase() {
   return "";
 }
 
+/** Short server session — avoids sending huge initData on every GET (Android header bugs) */
+const SESSION_KEY = "careofme_session_v1";
+let sessionToken = "";
+let sessionReady = null;
+
+function loadStoredSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s?.token && s?.exp && s.exp > Date.now()) {
+      sessionToken = s.token;
+    } else {
+      localStorage.removeItem(SESSION_KEY);
+    }
+  } catch (_) {}
+}
+loadStoredSession();
+
+function storeSession(token, exp) {
+  sessionToken = token || "";
+  try {
+    if (token) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ token, exp }));
+    } else {
+      localStorage.removeItem(SESSION_KEY);
+    }
+  } catch (_) {}
+}
+
+function showAuthBanner(msg) {
+  const el = $("#authBanner");
+  if (!el) return;
+  el.classList.remove("hidden");
+  const text = $("#authBannerText");
+  if (text) text.textContent = msg || "Открой приложение из бота @careofme_bot";
+}
+
+function hideAuthBanner() {
+  const el = $("#authBanner");
+  if (el) el.classList.add("hidden");
+}
+
 function apiErrorMessage(err) {
   const code = err?.data?.error || err?.message || "";
   if (err?.status === 0 || code === "network_error") {
@@ -80,33 +123,113 @@ function apiErrorMessage(err) {
     code === "invalid_init_data" ||
     code === "missing_init_data"
   ) {
-    return err?.data?.message || "Открой приложение заново из бота @careofme_bot";
+    return (
+      err?.data?.message ||
+      "Открой приложение заново из бота @careofme_bot (меню или /app)"
+    );
   }
   if (code === "text_required") return "Напиши хотя бы пару слов";
   if (code === "save_failed") return "Не удалось сохранить на сервере";
-  return err?.data?.message || "Не удалось сохранить";
+  return err?.data?.message || "Не удалось выполнить запрос";
+}
+
+async function ensureSession(force = false) {
+  if (!force && sessionToken) return sessionToken;
+  if (sessionReady && !force) return sessionReady;
+
+  sessionReady = (async () => {
+    const initData = getInitData();
+    if (!initData) {
+      const err = new Error("missing_init_data");
+      err.status = 401;
+      err.data = {
+        error: "missing_init_data",
+        message:
+          "Telegram не передал вход. Открой из @careofme_bot → /start → «Открыть careofme» или /app",
+      };
+      throw err;
+    }
+
+    const res = await fetch(`${apiBase()}/api/auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      // initData ONLY in body — most reliable path on phones
+      body: JSON.stringify({ initData }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      storeSession("", 0);
+      const err = new Error(data.error || "auth_failed");
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    storeSession(data.token, data.exp);
+    return data.token;
+  })();
+
+  try {
+    return await sessionReady;
+  } catch (e) {
+    sessionReady = null;
+    throw e;
+  }
 }
 
 async function api(path, options = {}) {
-  const initData = getInitData();
   const method = (options.method || "GET").toUpperCase();
+  // Login itself must not recurse
+  const isAuthCall = path === "/auth" || path.startsWith("/auth?");
+
+  if (!isAuthCall) {
+    try {
+      await ensureSession(false);
+    } catch (e) {
+      // one retry after clearing stale token
+      if (sessionToken) {
+        storeSession("", 0);
+        sessionReady = null;
+        await ensureSession(true);
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  const initData = getInitData();
   const headers = {
     "Content-Type": "application/json",
-    "X-Telegram-Init-Data": initData,
-    ...(initData ? { Authorization: `tma ${initData}` } : {}),
+    ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
+    ...(sessionToken ? { "X-Session-Token": sessionToken } : {}),
+    // Keep initData header as secondary fallback (short sessions / old clients)
+    ...(initData && initData.length < 3500
+      ? { "X-Telegram-Init-Data": initData }
+      : {}),
     ...(options.headers || {}),
   };
 
-  // Mutating requests: also put initData in body — some mobile WebViews
-  // drop long custom headers under load / when keyboard is open.
   let body = options.body;
   if (body && typeof body === "object" && method !== "GET" && method !== "HEAD") {
-    body = { ...body, initData };
-  } else if (!body && method !== "GET" && method !== "HEAD" && initData) {
-    body = { initData };
+    body = {
+      ...body,
+      ...(sessionToken ? { sessionToken } : {}),
+      // body initData backup for POSTs if session missing mid-flight
+      ...(initData ? { initData } : {}),
+    };
+  } else if (!body && method !== "GET" && method !== "HEAD") {
+    body = {
+      ...(sessionToken ? { sessionToken } : {}),
+      ...(initData ? { initData } : {}),
+    };
   }
 
-  const url = `${apiBase()}/api${path}`;
+  let url = `${apiBase()}/api${path}`;
+  // GET: pass short session token in query if headers are stripped (Android)
+  if ((method === "GET" || method === "HEAD") && sessionToken) {
+    const join = path.includes("?") ? "&" : "?";
+    url += `${join}sessionToken=${encodeURIComponent(sessionToken)}`;
+  }
 
   let res;
   try {
@@ -123,6 +246,26 @@ async function api(path, options = {}) {
     throw err;
   }
   const data = await res.json().catch(() => ({}));
+
+  // Stale session → re-auth once
+  if (
+    res.status === 401 &&
+    !isAuthCall &&
+    !options._retried &&
+    (data.error === "invalid_init_data" ||
+      data.error === "missing_init_data" ||
+      !sessionToken)
+  ) {
+    storeSession("", 0);
+    sessionReady = null;
+    try {
+      await ensureSession(true);
+      return api(path, { ...options, _retried: true });
+    } catch {
+      /* fall through */
+    }
+  }
+
   if (!res.ok) {
     const err = new Error(data.error || "request_failed");
     err.status = res.status;
@@ -307,7 +450,10 @@ function bindNav() {
 
 async function loadMe() {
   try {
+    // Establish session first (initData in POST body — works for all testers)
+    await ensureSession(false);
     state.me = await api("/me");
+    hideAuthBanner();
     const name = state.me.user.firstName || "друг";
     $("#greeting").textContent = `Привет, ${name}`;
     $("#streakChip").textContent = `🔥 ${state.me.streak}`;
@@ -323,12 +469,15 @@ async function loadMe() {
     }
     updatePayBanner();
   } catch (e) {
-    console.error(e);
+    console.error("loadMe", e);
     if (e.status === 401) {
       $("#greeting").textContent = "Открой через Telegram";
-      toast("Открой приложение из бота @careofme_bot");
+      const msg = apiErrorMessage(e);
+      showAuthBanner(msg);
+      toast(msg);
     } else if (e.status === 0) {
       $("#greeting").textContent = "Нет сети";
+      showAuthBanner("Нет связи с сервером. Проверь интернет.");
       toast("Сервер недоступен.");
     } else {
       $("#greeting").textContent = "Ошибка загрузки";
@@ -493,8 +642,8 @@ async function loadPractices() {
       b.onclick = () => openPractice(p.id, p.locked);
       list.appendChild(b);
     }
-  } catch {
-    list.innerHTML = `<p class="muted">Не удалось загрузить</p>`;
+  } catch (e) {
+    list.innerHTML = `<p class="muted">${apiErrorMessage(e)}</p>`;
   }
 }
 
@@ -934,8 +1083,15 @@ async function sendCoach(text) {
         "bot"
       );
       toast("Лимит коуча");
+    } else if (e.status === 401) {
+      appendBubble(apiErrorMessage(e), "bot");
+      showAuthBanner(apiErrorMessage(e));
     } else {
-      appendBubble("Сейчас не удалось ответить. Попробуй ещё раз.", "bot");
+      appendBubble(
+        "Сейчас не удалось ответить. Попробуй ещё раз через минуту.",
+        "bot"
+      );
+      console.error("coach", e);
     }
   }
 }
@@ -1391,8 +1547,33 @@ function wireUi() {
 }
 
 wireUi();
-loadMe().catch((e) => console.error("loadMe", e));
 
-if (!tg?.initData) {
-  console.info("Preview mode: open via Telegram bot for full auth");
+// Wait a tick for Telegram to inject initData on slow phones
+function boot() {
+  const hasTg = Boolean(window.Telegram?.WebApp);
+  const hasInit = Boolean(getInitData());
+  if (!hasTg || !hasInit) {
+    console.info("Telegram WebApp initData missing", { hasTg, hasInit });
+  }
+  loadMe().catch((e) => console.error("loadMe", e));
+}
+
+if (tg) {
+  try {
+    tg.ready();
+  } catch (_) {}
+  // Some clients populate initData slightly after ready()
+  setTimeout(boot, 50);
+} else {
+  boot();
+}
+
+const retryAuthBtn = document.getElementById("authRetryBtn");
+if (retryAuthBtn) {
+  retryAuthBtn.addEventListener("click", async () => {
+    storeSession("", 0);
+    sessionReady = null;
+    toast("Пробуем снова…");
+    await loadMe();
+  });
 }

@@ -927,3 +927,22 @@ h2 {
 #journalEditText {
   font-size: 16px; /* prevents iOS zoom on focus */
 }
+
+.auth-banner {
+  background: color-mix(in srgb, #c97b7b 18%, var(--card));
+  border: 1px solid color-mix(in srgb, #c97b7b 45%, var(--border));
+  color: var(--text);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.auth-banner p {
+  margin: 0 0 10px;
+}
+
+.auth-banner .btn {
+  width: 100%;
+}
