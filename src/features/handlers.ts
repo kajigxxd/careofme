@@ -855,10 +855,12 @@ async function offerPlanPayment(
     });
     store.trackInvoice(userId, inv.invoice_id, plan);
     const url = invoicePayUrl(inv);
+    const { planPriceLabel } = await import("../payments/plans");
     await ctx.reply(
-      `${info.title} — ${info.price} / 30 дней\n\n` +
+      `${info.title} — ${info.price} / 30 дней\n` +
+        `${planPriceLabel(plan)}\n\n` +
         info.perks.map((p) => `• ${p}`).join("\n") +
-        `\n\n💎 Оплата в Crypto Bot (USDT / TON / BTC / ETH…).\n` +
+        `\n\n💎 Оплата в Crypto Bot (USDT, фикс. курс ₽).\n` +
         `1) Нажми «Оплатить криптой»\n` +
         `2) Подтверди платёж\n` +
         `3) Вернись и нажми «Я оплатил(а)»\n\n` +

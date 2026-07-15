@@ -600,7 +600,7 @@ function showPayModal(plan, payUrl, invoiceId) {
   state.lastPayUrl = payUrl;
   const title = plan === "plus" ? "Плюс · 349 ₽" : "Забота · 199 ₽";
   $("#payModalText").textContent =
-    `Тариф «${title}». Нажми «Открыть Crypto Bot», оплати USDT/TON/BTC… и вернись — «Проверить оплату».`;
+    `Тариф «${title}» (курс 81 ₽ = 1 USDT). Открой Crypto Bot, оплати USDT и вернись — «Проверить оплату».`;
   $("#payModal").classList.remove("hidden");
   const st = $("#payStatus");
   if (st) st.textContent = `Счёт #${invoiceId} создан`;
@@ -728,7 +728,7 @@ function updatePayBanner() {
     <p class="muted" id="payBannerText">
       ${
         state.me?.cryptoPayConfigured
-          ? "USDT · TON · BTC · ETH · сумма в ₽ через Crypto Bot"
+          ? "USDT · фиксированный курс 81 ₽ · через Crypto Bot"
           : "⚠️ Оплата временно недоступна"
       }
     </p>

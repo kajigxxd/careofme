@@ -4,10 +4,13 @@
  */
 import crypto from "crypto";
 import {
-  CRYPTO_ACCEPTED_ASSETS,
+  CRYPTO_INVOICE_ASSET,
   PLAN_PRICES_RUB,
   PLAN_TITLES,
   buildInvoicePayload,
+  planPriceLabel,
+  planPriceUsdt,
+  rubPerUsdt,
   type PaidPlan,
 } from "./plans";
 
@@ -88,17 +91,19 @@ export async function createPlanInvoice(opts: {
   plan: PaidPlan;
   botUsername?: string;
 }): Promise<CryptoInvoice> {
-  const amount = PLAN_PRICES_RUB[opts.plan];
+  const rub = PLAN_PRICES_RUB[opts.plan];
+  const usdt = planPriceUsdt(opts.plan);
   const title = PLAN_TITLES[opts.plan];
   const botUser =
     opts.botUsername || process.env.BOT_USERNAME || "careofme_bot";
+  const rate = rubPerUsdt();
 
+  // Fixed RUB→USDT rate: invoice in USDT so CryptoBot doesn't use market FX
   const invoice = await apiCall<CryptoInvoice>("createInvoice", {
-    currency_type: "fiat",
-    fiat: "RUB",
-    amount: String(amount),
-    accepted_assets: CRYPTO_ACCEPTED_ASSETS,
-    description: `careofme · «${title}» · ${amount} RUB / 30 days`,
+    currency_type: "crypto",
+    asset: CRYPTO_INVOICE_ASSET,
+    amount: usdt,
+    description: `careofme · «${title}» · ${rub} ₽ = ${usdt} USDT (курс ${rate}) · 30 дней`,
     hidden_message: `Оплата прошла! Тариф «${title}» активирован в @${botUser}.`,
     payload: buildInvoicePayload(opts.userId, opts.plan),
     paid_btn_name: "openBot",
@@ -108,6 +113,9 @@ export async function createPlanInvoice(opts: {
     expires_in: 3600,
   });
 
+  console.log(
+    `Invoice ${opts.plan}: ${planPriceLabel(opts.plan)} → ${usdt} ${CRYPTO_INVOICE_ASSET}`
+  );
   return invoice;
 }
 
