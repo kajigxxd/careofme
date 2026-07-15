@@ -431,11 +431,22 @@ function onAppClick(e) {
     return;
   }
 
+  const periodOpt = target.closest("[data-plan-period]");
+  if (periodOpt && !periodOpt.disabled) {
+    e.preventDefault();
+    e.stopPropagation();
+    const plan = periodOpt.getAttribute("data-pay-for") || state.pendingPayPlan;
+    const period = periodOpt.getAttribute("data-plan-period");
+    hidePeriodModal();
+    if (plan && period) startCryptoPay(plan, period);
+    return;
+  }
+
   const pay = target.closest("[data-pay-plan]");
   if (pay && !pay.disabled) {
     e.preventDefault();
     e.stopPropagation();
-    startCryptoPay(pay.getAttribute("data-pay-plan"));
+    openPeriodPicker(pay.getAttribute("data-pay-plan"));
     return;
   }
 
@@ -1549,20 +1560,22 @@ function openPayUrl(url) {
   } catch (_) {}
 }
 
-function showPayModal(plan, payUrl, invoiceId) {
+function showPayModal(plan, payUrl, invoiceId, meta = {}) {
   state.lastInvoiceId = invoiceId;
   state.lastPayUrl = payUrl;
-  const title = plan === "plus" ? "Плюс · 349 ₽" : "Забота · 199 ₽";
-  const usdtHint = plan === "plus" ? "≈ 4.31 USDT" : "≈ 2.46 USDT";
+  const planTitle = plan === "plus" ? "Плюс" : "Забота";
+  const rub = meta.amountRub != null ? `${meta.amountRub} ₽` : "";
+  const period = meta.periodLabel || meta.period || "";
+  const usdt = meta.amountUsdt ? `≈ ${meta.amountUsdt} USDT` : "";
   const macHint = isMacDesktop() || isDesktopClient()
-    ? " На Mac: обязательно нажми кнопку «Открыть Crypto Bot» (авто-переход блокируется)."
+    ? " На Mac: обязательно нажми «Открыть Crypto Bot»."
     : "";
   $("#payModalText").textContent =
-    `Тариф «${title}» · ${usdtHint} (курс 81 ₽). Оплати в Crypto Bot, вернись и нажми «Проверить оплату».${macHint}`;
+    `«${planTitle}»${period ? ` · ${period}` : ""}${rub ? ` · ${rub}` : ""}${usdt ? ` · ${usdt}` : ""} (курс 81 ₽). ` +
+    `Оплати в Crypto Bot, вернись и нажми «Проверить оплату».${macHint}`;
   $("#payModal").classList.remove("hidden");
   const st = $("#payStatus");
   if (st) st.textContent = `Счёт #${invoiceId} создан`;
-  // Focus primary action for keyboard / accessibility on desktop
   setTimeout(() => {
     document.getElementById("payModalOpen")?.focus?.();
   }, 50);
@@ -1570,6 +1583,53 @@ function showPayModal(plan, payUrl, invoiceId) {
 
 function hidePayModal() {
   $("#payModal")?.classList.add("hidden");
+}
+
+const FALLBACK_PERIODS = {
+  care: [
+    { id: "7d", label: "7 дней", priceRub: 89 },
+    { id: "30d", label: "30 дней", priceRub: 199 },
+    { id: "90d", label: "3 месяца", priceRub: 499 },
+    { id: "180d", label: "6 месяцев", priceRub: 899 },
+  ],
+  plus: [
+    { id: "7d", label: "7 дней", priceRub: 119 },
+    { id: "30d", label: "30 дней", priceRub: 349 },
+    { id: "90d", label: "3 месяца", priceRub: 849 },
+    { id: "180d", label: "6 месяцев", priceRub: 1549 },
+  ],
+};
+
+function openPeriodPicker(plan) {
+  if (plan !== "care" && plan !== "plus") return;
+  state.pendingPayPlan = plan;
+  const title = plan === "plus" ? "Плюс" : "Забота";
+  if ($("#periodModalTitle")) {
+    $("#periodModalTitle").textContent = `Срок · ${title}`;
+  }
+  if ($("#periodModalHint")) {
+    $("#periodModalHint").textContent =
+      "Выбери период — цена и доступ зависят от срока";
+  }
+  const catalog = state.me?.planCatalog?.find((p) => p.id === plan);
+  const periods = catalog?.periods || FALLBACK_PERIODS[plan] || [];
+  const box = $("#periodOptions");
+  if (box) {
+    box.innerHTML = periods
+      .map((p) => {
+        const usdt = p.priceUsdt ? ` · ≈ ${p.priceUsdt} USDT` : "";
+        return `<button type="button" class="period-opt" data-plan-period="${p.id}" data-pay-for="${plan}">
+          <span>${p.label}<span class="po-sub">${p.days || ""} дн.${usdt}</span></span>
+          <span class="po-price">${p.priceRub} ₽</span>
+        </button>`;
+      })
+      .join("");
+  }
+  $("#periodModal")?.classList.remove("hidden");
+}
+
+function hidePeriodModal() {
+  $("#periodModal")?.classList.add("hidden");
 }
 
 async function startTrial(plan) {
@@ -1605,7 +1665,7 @@ async function startTrial(plan) {
   }
 }
 
-async function startCryptoPay(plan) {
+async function startCryptoPay(plan, period) {
   if (!plan) return;
   if (state._paying) return; // prevent double invoices
   if (plan === "free") {
@@ -1623,6 +1683,11 @@ async function startCryptoPay(plan) {
     return;
   }
 
+  if (!period) {
+    openPeriodPicker(plan);
+    return;
+  }
+
   if (!state.me?.cryptoPayConfigured) {
     toast("Оплата временно недоступна");
     return;
@@ -1631,7 +1696,10 @@ async function startCryptoPay(plan) {
   state._paying = true;
   toast("Создаю счёт…");
   try {
-    const res = await api("/plan", { method: "POST", body: { plan } });
+    const res = await api("/plan", {
+      method: "POST",
+      body: { plan, period },
+    });
     if (res.payment === "already_active") {
       toast("Подписка уже активна");
       await loadMe();
@@ -1639,11 +1707,14 @@ async function startCryptoPay(plan) {
       return;
     }
     if (res.payment === "crypto" && res.payUrl) {
-      showPayModal(plan, res.payUrl, res.invoiceId);
+      showPayModal(plan, res.payUrl, res.invoiceId, {
+        amountRub: res.amountRub,
+        amountUsdt: res.amountUsdt,
+        period: res.period,
+        periodLabel: res.periodLabel,
+        days: res.days,
+      });
       startPayPolling(res.invoiceId, true);
-      // Desktop/macOS blocks navigation without direct user gesture —
-      // do NOT auto-open; user taps «Открыть Crypto Bot» in the modal.
-      // On mobile we can try auto-open after a short delay.
       if (!isDesktopClient() && !isMacDesktop()) {
         setTimeout(() => openPayUrl(res.payUrl), 200);
       } else {
@@ -1693,6 +1764,7 @@ async function verifyPayment(invoiceId, silent = false) {
     if (st.premium) {
       toast("Оплата прошла ✨");
       hidePayModal();
+      hidePeriodModal();
       await loadMe();
       renderPlans();
       return true;
@@ -1752,10 +1824,10 @@ function updatePayBanner() {
     ${trialRow}
     <div class="pay-row">
       <button class="btn primary" type="button" data-pay-plan="care">
-        Забота · 199 ₽
+        Забота · от 89 ₽
       </button>
       <button class="btn primary" type="button" data-pay-plan="plus">
-        Плюс · 349 ₽
+        Плюс · от 119 ₽
       </button>
     </div>
     <button class="linkish" data-go="premium" type="button">Все тарифы и детали →</button>`;
@@ -1813,14 +1885,19 @@ function renderPlans() {
               ? `<p class="muted" style="margin:0 0 8px;font-size:0.82rem">Пробный период уже использован</p>`
               : "";
           const payBtn = cryptoOk
-            ? `<button class="btn ${canTrial ? "ghost" : "primary"} block" type="button" data-pay-plan="${p.id}">💎 Оплатить · ${p.price}</button>`
+            ? `<button class="btn ${canTrial ? "ghost" : "primary"} block" type="button" data-pay-plan="${p.id}">💎 Выбрать срок и оплатить</button>`
             : `<button class="btn ghost block" type="button" disabled>Оплата недоступна</button>`;
           btn = trialBtn + payBtn;
         }
+        const hint =
+          p.priceHint
+            ? `<p class="muted" style="font-size:0.8rem;margin:0 0 10px">${p.priceHint}</p>`
+            : "";
         return `
       <div class="plan">
         <h3>${p.title}${active && p.id !== "free" && premium ? (isTrial ? " · пробный" : " · сейчас") : ""}</h3>
         <div class="price">${p.price}</div>
+        ${hint}
         <ul>${(p.perks || []).map((x) => `<li>${x}</li>`).join("")}</ul>
         ${btn}
       </div>`;
@@ -1921,6 +1998,7 @@ function wireUi() {
   });
   on("payModalCheck", "click", () => verifyPayment(state.lastInvoiceId, false));
   on("payModalClose", "click", hidePayModal);
+  on("periodModalClose", "click", hidePeriodModal);
 
   // Also bind feelings button directly (belt + suspenders for macOS)
   on("editFeelingsBtn", "click", (ev) => {

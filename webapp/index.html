@@ -13,7 +13,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715m" />
+    <link rel="stylesheet" href="./styles.css?v=20260715n" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -385,14 +385,17 @@
             </div>
             <div class="pay-row" style="margin-top:8px">
               <button class="btn ghost block" type="button" data-pay-plan="care">
-                💎 Забота · 199 ₽ / мес
+                💎 Забота · от 89 ₽
               </button>
             </div>
             <div class="pay-row">
               <button class="btn ghost block" type="button" data-pay-plan="plus">
-                ✨ Плюс · 349 ₽ / мес
+                ✨ Плюс · от 119 ₽
               </button>
             </div>
+            <p class="muted" style="font-size:0.8rem;margin-top:8px">
+              Срок: 7 дней · 30 дней · 3 месяца · 6 месяцев
+            </p>
             <button class="btn ghost block" type="button" id="checkPayBtn" style="margin-top:8px">
               🔄 Я уже оплатил(а) — проверить
             </button>
@@ -421,6 +424,15 @@
       </nav>
     </div>
 
+    <div id="periodModal" class="pay-modal hidden" role="dialog" aria-modal="true">
+      <div class="pay-modal-card">
+        <h2 id="periodModalTitle">Срок подписки</h2>
+        <p class="muted" id="periodModalHint">Выбери, на сколько оформить доступ</p>
+        <div id="periodOptions" class="period-options"></div>
+        <button class="linkish" type="button" id="periodModalClose">Отмена</button>
+      </div>
+    </div>
+
     <div id="payModal" class="pay-modal hidden" role="dialog" aria-modal="true">
       <div class="pay-modal-card">
         <h2>Оплата в Crypto Bot</h2>
@@ -441,6 +453,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715m" type="module"></script>
+    <script src="./app.js?v=20260715n" type="module"></script>
   </body>
 </html>

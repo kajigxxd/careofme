@@ -125,32 +125,60 @@ export function plansKeyboard() {
     .row()
     .text("🎁 Плюс · 3 дня бесплатно", "plan:trial:plus")
     .row()
-    .text("🌱 Забота · 199 ₽", "plan:care")
+    .text("🌱 Забота · от 89 ₽", "plan:care")
     .row()
-    .text("✨ Плюс · 349 ₽", "plan:plus")
+    .text("✨ Плюс · от 119 ₽", "plan:plus")
     .row()
     .text("Остаться на бесплатном", "plan:free")
     .row()
     .text("« В меню", "nav:home");
 }
 
-export function confirmPlanKeyboard(plan: "care" | "plus", payUrl?: string) {
+/** Choose subscription length before payment */
+export function planPeriodKeyboard(plan: "care" | "plus") {
+  const prices =
+    plan === "care"
+      ? { "7d": 89, "30d": 199, "90d": 499, "180d": 899 }
+      : { "7d": 119, "30d": 349, "90d": 849, "180d": 1549 };
+  return new InlineKeyboard()
+    .text(`7 дней · ${prices["7d"]} ₽`, `plan:${plan}:7d`)
+    .row()
+    .text(`30 дней · ${prices["30d"]} ₽`, `plan:${plan}:30d`)
+    .row()
+    .text(`3 месяца · ${prices["90d"]} ₽`, `plan:${plan}:90d`)
+    .row()
+    .text(`6 месяцев · ${prices["180d"]} ₽`, `plan:${plan}:180d`)
+    .row()
+    .text("« Назад", "nav:premium");
+}
+
+export function confirmPlanKeyboard(
+  plan: "care" | "plus",
+  payUrl?: string,
+  period = "30d"
+) {
   const kb = new InlineKeyboard();
   if (payUrl) {
     kb.url("💎 Оплатить криптой", payUrl).row();
     kb.text("🔄 Проверить оплату", `pay_check:${plan}`).row();
   } else {
-    kb.text("↻ Создать счёт снова", `plan:${plan}`).row();
+    kb.text("↻ Создать счёт снова", `plan:${plan}:${period}`).row();
   }
   kb.text("Отмена", "nav:premium");
   return kb;
 }
 
-export function payUrlKeyboard(url: string, plan: "care" | "plus") {
+export function payUrlKeyboard(
+  url: string,
+  plan: "care" | "plus",
+  period = "30d"
+) {
   return new InlineKeyboard()
     .url("💎 Открыть Crypto Bot", url)
     .row()
     .text("🔄 Я оплатил(а)", `pay_check:${plan}`)
+    .row()
+    .text("« Сменить срок", `plan:${plan}`)
     .row()
     .text("« Назад", "nav:premium");
 }

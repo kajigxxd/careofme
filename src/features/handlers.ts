@@ -39,6 +39,7 @@ import {
   plansKeyboard,
   confirmPlanKeyboard,
   payUrlKeyboard,
+  planPeriodKeyboard,
   openAppKeyboard,
   webappUrl,
 } from "../bot/keyboards";
@@ -47,7 +48,16 @@ import {
   invoicePayUrl,
   isCryptoPayConfigured,
 } from "../payments/cryptopay";
-import { PLAN_DURATION_DAYS, type PaidPlan } from "../payments/plans";
+import {
+  PLAN_DURATION_DAYS,
+  PLAN_PERIODS,
+  isPlanPeriod,
+  planPriceLabel,
+  planPriceRub,
+  periodDays,
+  type PaidPlan,
+  type PlanPeriod,
+} from "../payments/plans";
 import {
   applyPaidInvoice,
   checkPendingPayments,
@@ -623,7 +633,10 @@ export function registerHandlers(bot: Bot) {
       }
 
       if (data.startsWith("plan:")) {
-        const plan = data.split(":")[1] as "free" | "care" | "plus";
+        // plan:free | plan:care | plan:plus | plan:care:30d
+        const parts = data.split(":");
+        const plan = parts[1] as "free" | "care" | "plus";
+        const periodTok = parts[2];
         await ctx.answerCallbackQuery();
         if (plan === "free") {
           store.updateUser(user.userId, {
@@ -638,7 +651,17 @@ export function registerHandlers(bot: Bot) {
           return;
         }
         if (plan === "care" || plan === "plus") {
-          await offerPlanPayment(ctx, user.userId, plan as PaidPlan);
+          if (isPlanPeriod(periodTok)) {
+            await offerPlanPayment(ctx, user.userId, plan, periodTok);
+          } else {
+            await ctx.reply(
+              `Выбери срок для «${PLANS[plan].title}»:\n` +
+                (plan === "care"
+                  ? "7д · 89 ₽ · 30д · 199 ₽ · 3м · 499 ₽ · 6м · 899 ₽"
+                  : "7д · 119 ₽ · 30д · 349 ₽ · 3м · 849 ₽ · 6м · 1549 ₽"),
+              { reply_markup: planPeriodKeyboard(plan) }
+            );
+          }
         }
         return;
       }
@@ -1217,7 +1240,7 @@ async function openPremium(ctx: Context) {
   await ctx.reply(
     `💎 Подписка careofme\n\n` +
       `Ежедневная опора: выгорание, тревога, сон — на русском.\n` +
-      `Пробный период 3 дня · 199–349 ₽/мес · дешевле психолога.\n\n` +
+      `Пробный 3 дня · сроки 7д / 30д / 3м / 6м · от 89 ₽\n\n` +
       lines.join("\n\n") +
       `\n\n${payHint}${status}`,
     { reply_markup: plansKeyboard() }
@@ -1227,12 +1250,16 @@ async function openPremium(ctx: Context) {
 async function offerPlanPayment(
   ctx: Context,
   userId: number,
-  plan: PaidPlan
+  plan: PaidPlan,
+  period: PlanPeriod = "30d"
 ) {
   const info = PLANS[plan];
+  const rub = planPriceRub(plan, period);
+  const days = periodDays(period);
+  const periodLabel = PLAN_PERIODS[period].label;
   if (!isCryptoPayConfigured()) {
     await ctx.reply(
-      `${info.title} — ${info.price}\n\n` +
+      `${info.title} — ${rub} ₽ / ${periodLabel}\n\n` +
         info.perks.map((p) => `• ${p}`).join("\n") +
         `\n\n⚠️ Оплата криптой не настроена на сервере.`,
       { reply_markup: plansKeyboard() }
@@ -1245,14 +1272,14 @@ async function offerPlanPayment(
     const inv = await createPlanInvoice({
       userId,
       plan,
+      period,
       botUsername: process.env.BOT_USERNAME || "careofme_bot",
     });
-    store.trackInvoice(userId, inv.invoice_id, plan);
+    store.trackInvoice(userId, inv.invoice_id, plan, days);
     const url = invoicePayUrl(inv);
-    const { planPriceLabel } = await import("../payments/plans");
     await ctx.reply(
-      `${info.title} — ${info.price} / 30 дней\n` +
-        `${planPriceLabel(plan)}\n\n` +
+      `${info.title} — ${rub} ₽ / ${periodLabel}\n` +
+        `${planPriceLabel(plan, period)}\n\n` +
         info.perks.map((p) => `• ${p}`).join("\n") +
         `\n\n💎 Оплата в Crypto Bot (USDT, фикс. курс ₽).\n` +
         `1) Нажми «Оплатить криптой»\n` +
@@ -1261,8 +1288,8 @@ async function offerPlanPayment(
         `Счёт #${inv.invoice_id}`,
       {
         reply_markup: url
-          ? payUrlKeyboard(url, plan)
-          : confirmPlanKeyboard(plan),
+          ? payUrlKeyboard(url, plan, period)
+          : confirmPlanKeyboard(plan, undefined, period),
       }
     );
   } catch (e) {

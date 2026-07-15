@@ -12,7 +12,7 @@ export function applyPaidInvoice(opts: {
   payload?: string;
   amount?: string;
   asset?: string;
-}): { ok: boolean; userId?: number; plan?: PaidPlan; already?: boolean } {
+}): { ok: boolean; userId?: number; plan?: PaidPlan; days?: number; already?: boolean } {
   const parsed = parseInvoicePayload(opts.payload);
   if (!parsed) {
     console.warn("applyPaidInvoice: bad payload", opts.payload);
@@ -26,11 +26,12 @@ export function applyPaidInvoice(opts: {
     });
   }
 
+  const days = parsed.days || PLAN_DURATION_DAYS;
+
   if (store.hasPaidInvoice(parsed.userId, opts.invoiceId)) {
-    // Ensure plan still active even if already recorded
     const u = store.getUser(parsed.userId)!;
     if (!store.isPremium(u) || u.plan !== parsed.plan) {
-      store.activatePlan(parsed.userId, parsed.plan, PLAN_DURATION_DAYS, {
+      store.activatePlan(parsed.userId, parsed.plan, days, {
         invoiceId: opts.invoiceId,
         amount: opts.amount,
         asset: opts.asset,
@@ -40,16 +41,22 @@ export function applyPaidInvoice(opts: {
       ok: true,
       userId: parsed.userId,
       plan: parsed.plan,
+      days,
       already: true,
     };
   }
 
-  store.activatePlan(parsed.userId, parsed.plan, PLAN_DURATION_DAYS, {
+  store.activatePlan(parsed.userId, parsed.plan, days, {
     invoiceId: opts.invoiceId,
     amount: opts.amount,
     asset: opts.asset,
   });
-  return { ok: true, userId: parsed.userId, plan: parsed.plan };
+  return {
+    ok: true,
+    userId: parsed.userId,
+    plan: parsed.plan,
+    days,
+  };
 }
 
 /** Check specific invoice or all pending for user. */
@@ -76,8 +83,9 @@ export async function checkPendingPayments(
       if (store.hasPaidInvoice(userId, id)) {
         const pend = user?.pendingInvoices?.find((x) => x.invoiceId === id);
         const plan = pend?.plan;
+        const days = pend?.days || PLAN_DURATION_DAYS;
         if (plan) {
-          store.activatePlan(userId, plan, PLAN_DURATION_DAYS, {
+          store.activatePlan(userId, plan, days, {
             invoiceId: id,
           });
         }
@@ -94,17 +102,21 @@ export async function checkPendingPayments(
         amount: inv.paid_amount || inv.amount,
         asset: inv.paid_asset || inv.fiat,
       });
-      // If payload missing user, try pending plan
       if (!result.ok) {
         const pend = store
           .getUser(userId)
           ?.pendingInvoices?.find((x) => x.invoiceId === id);
         if (pend) {
-          store.activatePlan(userId, pend.plan, PLAN_DURATION_DAYS, {
-            invoiceId: id,
-            amount: inv.amount,
-            asset: inv.paid_asset || inv.fiat,
-          });
+          store.activatePlan(
+            userId,
+            pend.plan,
+            pend.days || PLAN_DURATION_DAYS,
+            {
+              invoiceId: id,
+              amount: inv.amount,
+              asset: inv.paid_asset || inv.fiat,
+            }
+          );
           return true;
         }
       } else if (result.userId === userId || !result.userId) {

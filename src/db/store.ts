@@ -100,7 +100,12 @@ export interface UserProfile {
   freeCoachToday: number;
   freeCoachDate?: string;
   /** Last crypto invoice ids for this user */
-  pendingInvoices?: { invoiceId: number; plan: "care" | "plus"; at: string }[];
+  pendingInvoices?: {
+    invoiceId: number;
+    plan: "care" | "plus";
+    at: string;
+    days?: number;
+  }[];
   paymentHistory?: {
     invoiceId: number;
     plan: "care" | "plus";
@@ -694,7 +699,8 @@ export class Store {
   trackInvoice(
     userId: number,
     invoiceId: number,
-    plan: "care" | "plus"
+    plan: "care" | "plus",
+    days?: number
   ): void {
     const user = this.getUser(userId);
     if (!user) return;
@@ -702,6 +708,7 @@ export class Store {
     user.pendingInvoices.unshift({
       invoiceId,
       plan,
+      days: days && days > 0 ? days : 30,
       at: new Date().toISOString(),
     });
     user.pendingInvoices = user.pendingInvoices.slice(0, 20);

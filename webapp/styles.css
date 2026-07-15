@@ -1013,6 +1013,47 @@ h2 {
   line-height: 1.35;
 }
 
+.period-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.period-opt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 650;
+  cursor: pointer;
+  text-align: left;
+}
+
+.period-opt:active {
+  transform: scale(0.99);
+}
+
+.period-opt .po-price {
+  color: var(--calm-btn-deep);
+  font-weight: 700;
+}
+
+.period-opt .po-sub {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--hint);
+  margin-top: 2px;
+}
+
 .risk-chip {
   display: inline-block;
   font-size: 0.75rem;

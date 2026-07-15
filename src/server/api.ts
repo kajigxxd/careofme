@@ -40,9 +40,16 @@ import {
 } from "../payments/cryptopay";
 import {
   planPriceUsdt,
+  planPriceRub,
+  planCatalog,
+  periodDays,
+  isPlanPeriod,
   rubPerUsdt,
   TRIAL_DAYS,
+  DEFAULT_PLAN_PERIOD,
+  PLAN_PERIODS,
   type PaidPlan,
+  type PlanPeriod,
 } from "../payments/plans";
 import { checkPendingPayments } from "../payments/activate";
 
@@ -321,6 +328,11 @@ export function createApiRouter(): Router {
       disclaimer: DISCLAIMER,
       focusLabels: FOCUS_LABELS,
       plans: PLANS,
+      planCatalog: planCatalog(),
+      planPeriods: Object.entries(PLAN_PERIODS).map(([id, meta]) => ({
+        id,
+        ...meta,
+      })),
       stressSources: STRESS_SOURCES,
       aiConfigured: isAiConfigured(),
       cryptoPayConfigured: isCryptoPayConfigured(),
@@ -812,25 +824,14 @@ export function createApiRouter(): Router {
       return res.status(400).json({ error: "invalid_plan" });
     }
 
-    // Already on this paid plan — don't create another invoice
-    if (
-      (plan === "care" || plan === "plus") &&
-      store.isPremium(profile) &&
-      profile.plan === plan
-    ) {
-      return res.json({
-        ok: true,
-        payment: "already_active",
-        plan: profile.plan,
-        premium: true,
-        isTrial: Boolean(profile.isTrial),
-        premiumUntil: profile.premiumUntil,
-      });
-    }
+    // Period: 7d | 30d | 90d | 180d (default 30d for paid)
+    const periodRaw = req.body?.period;
+    const period: PlanPeriod = isPlanPeriod(periodRaw)
+      ? periodRaw
+      : DEFAULT_PLAN_PERIOD;
+    const days = periodDays(period);
 
     if (plan === "free") {
-      // Do not silently wipe paid subscription via free switch from Mini App
-      // unless user is not premium
       if (store.isPremium(profile)) {
         return res.status(400).json({
           error: "already_premium",
@@ -864,9 +865,15 @@ export function createApiRouter(): Router {
       const inv = await createPlanInvoice({
         userId: profile.userId,
         plan: plan as PaidPlan,
+        period,
         botUsername: process.env.BOT_USERNAME || "careofme_bot",
       });
-      store.trackInvoice(profile.userId, inv.invoice_id, plan as PaidPlan);
+      store.trackInvoice(
+        profile.userId,
+        inv.invoice_id,
+        plan as PaidPlan,
+        days
+      );
       const payUrl = invoicePayUrl(inv);
       if (!payUrl) {
         return res.status(502).json({ error: "invoice_no_url" });
@@ -877,11 +884,14 @@ export function createApiRouter(): Router {
         invoiceId: inv.invoice_id,
         payUrl,
         miniAppPayUrl: inv.mini_app_invoice_url,
-        amountRub: PLANS[plan].priceRub,
-        amountUsdt: planPriceUsdt(plan as PaidPlan),
+        amountRub: planPriceRub(plan as PaidPlan, period),
+        amountUsdt: planPriceUsdt(plan as PaidPlan, period),
         rubPerUsdt: rubPerUsdt(),
         asset: "USDT",
         plan,
+        period,
+        days,
+        periodLabel: PLAN_PERIODS[period].label,
       });
     } catch (e) {
       console.error("createPlanInvoice", e);

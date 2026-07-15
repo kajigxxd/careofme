@@ -5,13 +5,17 @@
 import crypto from "crypto";
 import {
   CRYPTO_INVOICE_ASSET,
-  PLAN_PRICES_RUB,
+  PLAN_PERIODS,
   PLAN_TITLES,
   buildInvoicePayload,
+  isPlanPeriod,
   planPriceLabel,
+  planPriceRub,
   planPriceUsdt,
   rubPerUsdt,
   type PaidPlan,
+  type PlanPeriod,
+  DEFAULT_PLAN_PERIOD,
 } from "./plans";
 
 const MAINNET = "https://pay.crypt.bot/api";
@@ -86,39 +90,6 @@ export function invoicePayUrl(inv: CryptoInvoice): string {
   );
 }
 
-export async function createPlanInvoice(opts: {
-  userId: number;
-  plan: PaidPlan;
-  botUsername?: string;
-}): Promise<CryptoInvoice> {
-  const rub = PLAN_PRICES_RUB[opts.plan];
-  const usdt = planPriceUsdt(opts.plan);
-  const title = PLAN_TITLES[opts.plan];
-  const botUser =
-    opts.botUsername || process.env.BOT_USERNAME || "careofme_bot";
-  const rate = rubPerUsdt();
-
-  // Fixed RUB→USDT rate: invoice in USDT (ASCII description avoids rare API quirks)
-  const invoice = await apiCall<CryptoInvoice>("createInvoice", {
-    currency_type: "crypto",
-    asset: CRYPTO_INVOICE_ASSET,
-    amount: usdt,
-    description: `careofme ${title} ${rub} RUB = ${usdt} USDT (rate ${rate}) 30d`,
-    hidden_message: `Paid. Plan ${title} active in @${botUser}.`,
-    payload: buildInvoicePayload(opts.userId, opts.plan),
-    paid_btn_name: "openBot",
-    paid_btn_url: `https://t.me/${botUser}`,
-    allow_comments: false,
-    allow_anonymous: false,
-    expires_in: 3600,
-  });
-
-  console.log(
-    `Invoice ${opts.plan}: ${planPriceLabel(opts.plan)} → ${usdt} ${CRYPTO_INVOICE_ASSET}`
-  );
-  return invoice;
-}
-
 export async function getInvoice(
   invoiceId: number
 ): Promise<CryptoInvoice | null> {
@@ -133,6 +104,44 @@ export async function getInvoice(
     console.warn("getInvoice failed", invoiceId, e);
     return null;
   }
+}
+
+export async function createPlanInvoice(opts: {
+  userId: number;
+  plan: PaidPlan;
+  period?: PlanPeriod;
+  botUsername?: string;
+}): Promise<CryptoInvoice> {
+  const period: PlanPeriod = isPlanPeriod(opts.period)
+    ? opts.period
+    : DEFAULT_PLAN_PERIOD;
+  const rub = planPriceRub(opts.plan, period);
+  const usdt = planPriceUsdt(opts.plan, period);
+  const title = PLAN_TITLES[opts.plan];
+  const days = PLAN_PERIODS[period].days;
+  const periodLabel = PLAN_PERIODS[period].label;
+  const botUser =
+    opts.botUsername || process.env.BOT_USERNAME || "careofme_bot";
+  const rate = rubPerUsdt();
+
+  const invoice = await apiCall<CryptoInvoice>("createInvoice", {
+    currency_type: "crypto",
+    asset: CRYPTO_INVOICE_ASSET,
+    amount: usdt,
+    description: `careofme ${title} ${rub} RUB = ${usdt} USDT (rate ${rate}) ${days}d`,
+    hidden_message: `Paid. Plan ${title} (${periodLabel}) active in @${botUser}.`,
+    payload: buildInvoicePayload(opts.userId, opts.plan, period),
+    paid_btn_name: "openBot",
+    paid_btn_url: `https://t.me/${botUser}`,
+    allow_comments: false,
+    allow_anonymous: false,
+    expires_in: 3600,
+  });
+
+  console.log(
+    `Invoice ${opts.plan}/${period}: ${planPriceLabel(opts.plan, period)} → ${usdt} ${CRYPTO_INVOICE_ASSET}`
+  );
+  return invoice;
 }
 
 /**

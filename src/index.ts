@@ -123,7 +123,7 @@ function mountCryptoPayWebhook(
                 u?.chatId || result.userId,
                 `✅ Оплата получена!\n\nТариф «${
                   result.plan === "plus" ? "Плюс" : "Забота"
-                }» активен на 30 дней.\nОткрой /start или приложение careofme.`
+                }» активен на ${result.days || 30} дн.\nОткрой /start или приложение careofme.`
               );
             } catch (e) {
               console.warn("notify user pay", e);
