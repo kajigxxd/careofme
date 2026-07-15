@@ -13,7 +13,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715d" />
+    <link rel="stylesheet" href="./styles.css?v=20260715e" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -208,18 +208,52 @@
 
         <!-- JOURNAL -->
         <section class="screen" data-screen="journal">
-          <div class="card">
+          <div class="row-between">
             <h1>Дневник</h1>
-            <p class="prompt" id="journalPrompt"></p>
-            <textarea
-              id="journalText"
-              class="input area"
-              rows="6"
-              placeholder="Можно коротко — 2–5 предложений"
-            ></textarea>
-            <div class="row-btns">
-              <button class="btn ghost" id="journalRefresh" type="button">Другой вопрос</button>
-              <button class="btn primary" id="journalSave" type="button">Сохранить</button>
+          </div>
+          <div class="seg" id="journalTabs">
+            <button type="button" class="seg-btn on" data-journal-tab="new">Новая</button>
+            <button type="button" class="seg-btn" data-journal-tab="list">Мои записи</button>
+          </div>
+
+          <div id="journalNewPane">
+            <div class="card">
+              <p class="prompt" id="journalPrompt"></p>
+              <textarea
+                id="journalText"
+                class="input area"
+                rows="6"
+                placeholder="Можно коротко — 2–5 предложений"
+              ></textarea>
+              <div class="row-btns">
+                <button class="btn ghost" id="journalRefresh" type="button">Другой вопрос</button>
+                <button class="btn primary" id="journalSave" type="button">Сохранить</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="journalListPane" class="hidden">
+            <div id="journalList" class="list"></div>
+            <p class="muted" id="journalEmpty" style="display:none;text-align:center;padding:16px">
+              Пока нет записей. Напиши первую на вкладке «Новая».
+            </p>
+          </div>
+
+          <div id="journalEditPane" class="hidden">
+            <div class="card">
+              <button class="back" type="button" id="journalEditBack">← К списку</button>
+              <p class="muted" id="journalEditMeta"></p>
+              <p class="prompt" id="journalEditPrompt"></p>
+              <textarea
+                id="journalEditText"
+                class="input area"
+                rows="8"
+                placeholder="Текст записи"
+              ></textarea>
+              <div class="row-btns">
+                <button class="btn ghost" type="button" id="journalDelete">Удалить</button>
+                <button class="btn primary" type="button" id="journalUpdate">Сохранить</button>
+              </div>
             </div>
           </div>
         </section>
@@ -330,6 +364,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715d" type="module"></script>
+    <script src="./app.js?v=20260715e" type="module"></script>
   </body>
 </html>

@@ -53,6 +53,7 @@ export interface JournalEntry {
   at: string;
   prompt: string;
   text: string;
+  updatedAt?: string;
 }
 
 export interface PracticeLog {
@@ -256,18 +257,56 @@ export class Store {
     userId: number,
     prompt: string,
     text: string
-  ): UserProfile {
+  ): JournalEntry {
     const user = this.getUser(userId);
     if (!user) throw new Error("User not found");
-    user.journal.unshift({
-      id: `j_${Date.now()}`,
+    const entry: JournalEntry = {
+      id: `j_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       at: new Date().toISOString(),
       prompt,
       text,
-    });
+    };
+    user.journal.unshift(entry);
     if (user.journal.length > 200) user.journal = user.journal.slice(0, 200);
     this.persist();
-    return user;
+    return entry;
+  }
+
+  listJournal(userId: number, limit = 100): JournalEntry[] {
+    const user = this.getUser(userId);
+    if (!user) return [];
+    return user.journal.slice(0, limit);
+  }
+
+  getJournalEntry(userId: number, entryId: string): JournalEntry | undefined {
+    const user = this.getUser(userId);
+    return user?.journal.find((j) => j.id === entryId);
+  }
+
+  updateJournal(
+    userId: number,
+    entryId: string,
+    patch: { text?: string; prompt?: string }
+  ): JournalEntry {
+    const user = this.getUser(userId);
+    if (!user) throw new Error("User not found");
+    const entry = user.journal.find((j) => j.id === entryId);
+    if (!entry) throw new Error("Entry not found");
+    if (typeof patch.text === "string") entry.text = patch.text;
+    if (typeof patch.prompt === "string") entry.prompt = patch.prompt;
+    entry.updatedAt = new Date().toISOString();
+    this.persist();
+    return entry;
+  }
+
+  deleteJournal(userId: number, entryId: string): boolean {
+    const user = this.getUser(userId);
+    if (!user) throw new Error("User not found");
+    const before = user.journal.length;
+    user.journal = user.journal.filter((j) => j.id !== entryId);
+    if (user.journal.length === before) return false;
+    this.persist();
+    return true;
   }
 
   addPractice(

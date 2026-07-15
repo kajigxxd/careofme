@@ -834,3 +834,77 @@ h2 {
   font-size: 0.75rem;
   opacity: 0.8;
 }
+
+/* Segmented control (journal tabs) */
+.seg {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--calm-mist) 55%, var(--card));
+  border: 1px solid var(--border);
+}
+
+.seg-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--hint);
+  font: inherit;
+  font-weight: 650;
+  font-size: 0.9rem;
+  padding: 10px 12px;
+  border-radius: 11px;
+  cursor: pointer;
+}
+
+.seg-btn.on {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 2px 10px var(--calm-shadow);
+}
+
+.journal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  width: 100%;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px var(--calm-shadow);
+  margin-bottom: 8px;
+}
+
+.journal-item .j-date {
+  font-size: 0.75rem;
+  color: var(--hint);
+  font-weight: 600;
+}
+
+.journal-item .j-prompt {
+  font-size: 0.82rem;
+  color: var(--link);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.journal-item .j-text {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.journal-item:active {
+  transform: scale(0.99);
+}

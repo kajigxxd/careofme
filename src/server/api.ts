@@ -227,6 +227,20 @@ export function createApiRouter(): Router {
     res.json({ prompt: pickJournalPrompt() });
   });
 
+  router.get("/journal", (req, res) => {
+    const profile = (req as any).profile;
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
+    const entries = store.listJournal(profile.userId, limit);
+    res.json({ entries, count: entries.length });
+  });
+
+  router.get("/journal/:id", (req, res) => {
+    const profile = (req as any).profile;
+    const entry = store.getJournalEntry(profile.userId, req.params.id);
+    if (!entry) return res.status(404).json({ error: "not_found" });
+    res.json({ entry });
+  });
+
   router.post("/journal", (req, res) => {
     const profile = (req as any).profile;
     const text =
@@ -236,8 +250,41 @@ export function createApiRouter(): Router {
         ? req.body.prompt.slice(0, 300)
         : "Свободная запись";
     if (!text.trim()) return res.status(400).json({ error: "text_required" });
-    store.addJournal(profile.userId, prompt, text);
-    res.json({ ok: true });
+    const entry = store.addJournal(profile.userId, prompt, text);
+    res.json({ ok: true, entry });
+  });
+
+  router.patch("/journal/:id", (req, res) => {
+    const profile = (req as any).profile;
+    const text =
+      typeof req.body?.text === "string" ? req.body.text.slice(0, 4000) : undefined;
+    const prompt =
+      typeof req.body?.prompt === "string"
+        ? req.body.prompt.slice(0, 300)
+        : undefined;
+    if (text !== undefined && !text.trim()) {
+      return res.status(400).json({ error: "text_required" });
+    }
+    try {
+      const entry = store.updateJournal(profile.userId, req.params.id, {
+        text,
+        prompt,
+      });
+      res.json({ ok: true, entry });
+    } catch {
+      res.status(404).json({ error: "not_found" });
+    }
+  });
+
+  router.delete("/journal/:id", (req, res) => {
+    const profile = (req as any).profile;
+    try {
+      const ok = store.deleteJournal(profile.userId, req.params.id);
+      if (!ok) return res.status(404).json({ error: "not_found" });
+      res.json({ ok: true });
+    } catch {
+      res.status(404).json({ error: "not_found" });
+    }
   });
 
   router.post("/coach", async (req, res) => {

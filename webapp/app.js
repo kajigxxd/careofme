@@ -128,7 +128,7 @@ function go(screen) {
   if (screen === "checkin") resetCheckinUI();
   if (screen === "practices") loadPractices();
   if (screen === "stress") renderStressUI();
-  if (screen === "journal") loadJournalPrompt();
+  if (screen === "journal") openJournalScreen();
   if (screen === "coach") renderCoachMeta();
   if (screen === "stats") loadStats();
   if (screen === "premium") renderPlans();
@@ -178,6 +178,24 @@ function onAppClick(e) {
     e.preventDefault();
     e.stopPropagation();
     openFeelingsEditor();
+    return;
+  }
+
+  // Journal tabs
+  const jtab = target.closest("[data-journal-tab]");
+  if (jtab) {
+    e.preventDefault();
+    e.stopPropagation();
+    setJournalTab(jtab.getAttribute("data-journal-tab"));
+    return;
+  }
+
+  // Open journal entry for edit
+  const jitem = target.closest("[data-journal-id]");
+  if (jitem) {
+    e.preventDefault();
+    e.stopPropagation();
+    openJournalEdit(jitem.getAttribute("data-journal-id"));
     return;
   }
 
@@ -514,6 +532,31 @@ async function onStressSave() {
 }
 
 /* —— Journal —— */
+state.journalTab = "new";
+state.journalEntries = [];
+state.editingJournalId = null;
+
+function openJournalScreen() {
+  setJournalTab(state.journalTab || "new");
+}
+
+function setJournalTab(tab) {
+  state.journalTab = tab;
+  const newPane = $("#journalNewPane");
+  const listPane = $("#journalListPane");
+  const editPane = $("#journalEditPane");
+  if (newPane) newPane.classList.toggle("hidden", tab !== "new");
+  if (listPane) listPane.classList.toggle("hidden", tab !== "list");
+  if (editPane) editPane.classList.toggle("hidden", tab !== "edit");
+
+  $all("#journalTabs .seg-btn").forEach((b) => {
+    b.classList.toggle("on", b.getAttribute("data-journal-tab") === tab);
+  });
+
+  if (tab === "new") loadJournalPrompt();
+  if (tab === "list") loadJournalList();
+}
+
 async function loadJournalPrompt() {
   try {
     const { prompt } = await api("/journal/prompt");
@@ -524,6 +567,72 @@ async function loadJournalPrompt() {
       $("#journalPrompt").textContent =
         "Что сейчас сильнее всего влияет на твоё состояние?";
   }
+}
+
+function formatJournalDate(iso) {
+  try {
+    return new Date(iso).toLocaleString("ru-RU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+async function loadJournalList() {
+  const list = $("#journalList");
+  const empty = $("#journalEmpty");
+  if (list) list.innerHTML = `<p class="muted">Загрузка…</p>`;
+  try {
+    const data = await api("/journal");
+    state.journalEntries = data.entries || [];
+    if (!state.journalEntries.length) {
+      if (list) list.innerHTML = "";
+      if (empty) empty.style.display = "block";
+      return;
+    }
+    if (empty) empty.style.display = "none";
+    if (!list) return;
+    list.innerHTML = state.journalEntries
+      .map((e) => {
+        const preview = (e.text || "").replace(/</g, "&lt;").slice(0, 280);
+        const prompt = (e.prompt || "Запись").replace(/</g, "&lt;");
+        const edited = e.updatedAt ? " · изм." : "";
+        return `<button type="button" class="journal-item" data-journal-id="${e.id}">
+          <span class="j-date">${formatJournalDate(e.at)}${edited}</span>
+          <span class="j-prompt">${prompt}</span>
+          <span class="j-text">${preview}</span>
+        </button>`;
+      })
+      .join("");
+  } catch {
+    if (list) list.innerHTML = `<p class="muted">Не удалось загрузить записи</p>`;
+    if (empty) empty.style.display = "none";
+  }
+}
+
+function openJournalEdit(id) {
+  const entry =
+    state.journalEntries.find((x) => x.id === id) ||
+    null;
+  if (!entry) {
+    toast("Запись не найдена");
+    return;
+  }
+  state.editingJournalId = id;
+  if ($("#journalEditPrompt")) $("#journalEditPrompt").textContent = entry.prompt || "";
+  if ($("#journalEditText")) $("#journalEditText").value = entry.text || "";
+  if ($("#journalEditMeta")) {
+    const upd = entry.updatedAt
+      ? ` · изменено ${formatJournalDate(entry.updatedAt)}`
+      : "";
+    $("#journalEditMeta").textContent = `Создано ${formatJournalDate(entry.at)}${upd}`;
+  }
+  setJournalTab("edit");
 }
 
 async function onJournalSave() {
@@ -538,10 +647,46 @@ async function onJournalSave() {
       body: { text, prompt: state.journalPrompt },
     });
     if ($("#journalText")) $("#journalText").value = "";
-    toast("В дневнике 📝");
-    go("home");
+    toast("Сохранено 📝");
+    await loadJournalPrompt();
+    setJournalTab("list");
   } catch {
     toast("Ошибка");
+  }
+}
+
+async function onJournalUpdate() {
+  const id = state.editingJournalId;
+  if (!id) return;
+  const text = $("#journalEditText")?.value?.trim() || "";
+  if (!text) {
+    toast("Текст не может быть пустым");
+    return;
+  }
+  try {
+    await api(`/journal/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: { text },
+    });
+    toast("Изменения сохранены");
+    state.editingJournalId = null;
+    setJournalTab("list");
+  } catch {
+    toast("Не удалось сохранить");
+  }
+}
+
+async function onJournalDelete() {
+  const id = state.editingJournalId;
+  if (!id) return;
+  if (!confirm("Удалить эту запись?")) return;
+  try {
+    await api(`/journal/${encodeURIComponent(id)}`, { method: "DELETE" });
+    toast("Удалено");
+    state.editingJournalId = null;
+    setJournalTab("list");
+  } catch {
+    toast("Не удалось удалить");
   }
 }
 
@@ -971,6 +1116,12 @@ function wireUi() {
   on("stressSave", "click", () => onStressSave());
   on("journalRefresh", "click", () => loadJournalPrompt());
   on("journalSave", "click", () => onJournalSave());
+  on("journalEditBack", "click", () => {
+    state.editingJournalId = null;
+    setJournalTab("list");
+  });
+  on("journalUpdate", "click", () => onJournalUpdate());
+  on("journalDelete", "click", () => onJournalDelete());
   on("checkPayBtn", "click", () => verifyPayment(state.lastInvoiceId, false));
   // Use real <a> click + openPayUrl — critical for macOS Desktop user-gesture rules
   on("payModalOpen", "click", (ev) => {
