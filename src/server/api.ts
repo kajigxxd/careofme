@@ -308,14 +308,18 @@ export function createApiRouter(): Router {
           botUsername: "careofme_bot",
         });
         store.trackInvoice(profile.userId, inv.invoice_id, plan as PaidPlan);
+        // Prefer classic bot deep-link — opens CryptoBot reliably inside Telegram
+        const payUrl =
+          inv.bot_invoice_url ||
+          inv.pay_url ||
+          inv.mini_app_invoice_url ||
+          inv.web_app_invoice_url;
         return res.json({
           ok: true,
           payment: "crypto",
           invoiceId: inv.invoice_id,
-          payUrl:
-            inv.mini_app_invoice_url ||
-            inv.bot_invoice_url ||
-            inv.pay_url,
+          payUrl,
+          miniAppPayUrl: inv.mini_app_invoice_url,
           amountRub: PLANS[plan].priceRub,
           plan,
         });

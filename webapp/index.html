@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <meta name="color-scheme" content="light dark" />
-    <title>Бережно</title>
+    <title>careofme</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -23,11 +23,16 @@
         <div class="brand">
           <span class="logo">🌿</span>
           <div>
-            <div class="brand-title">Бережно</div>
+            <div class="brand-title">careofme</div>
             <div class="brand-sub" id="greeting">Загрузка…</div>
           </div>
         </div>
-        <button class="chip" id="streakChip" type="button">🔥 0</button>
+        <div class="top-actions">
+          <button class="chip pay-chip" data-go="premium" type="button" id="payChip">
+            💎 Pro
+          </button>
+          <button class="chip" id="streakChip" type="button">🔥 0</button>
+        </div>
       </header>
 
       <main id="screens">
@@ -79,8 +84,24 @@
             </div>
           </div>
 
+          <!-- Явная оплата криптой -->
+          <div class="card pay-banner" id="payBanner">
+            <div class="pay-banner-title">💎 Подписка · оплата криптой</div>
+            <p class="muted" id="payBannerText">
+              USDT · TON · BTC · ETH · сумма в ₽ через Crypto Bot
+            </p>
+            <div class="pay-row">
+              <button class="btn primary" type="button" data-pay-plan="care" id="homePayCare">
+                Забота · 199 ₽
+              </button>
+              <button class="btn primary" type="button" data-pay-plan="plus" id="homePayPlus">
+                Плюс · 349 ₽
+              </button>
+            </div>
+            <button class="linkish" data-go="premium" type="button">Все тарифы и детали →</button>
+          </div>
+
           <button class="linkish" data-go="stats">Полная статистика →</button>
-          <button class="linkish" data-go="premium">Подписка 199–349 ₽ →</button>
           <p class="fineprint" id="disclaimer"></p>
         </section>
 
@@ -206,8 +227,33 @@
 
         <!-- PREMIUM -->
         <section class="screen" data-screen="premium">
-          <h1>Подписка</h1>
-          <p class="muted">Ежедневная самопомощь дешевле психолога · 199–349 ₽/мес</p>
+          <h1>💎 Подписка</h1>
+          <p class="muted">
+            Самопомощь каждый день · дешевле психолога
+          </p>
+          <div class="card crypto-info" id="cryptoInfo">
+            <div class="crypto-title">Оплата криптовалютой</div>
+            <p class="muted">
+              Через <b>@CryptoBot</b>. Счёт в рублях, платишь USDT / TON / BTC / ETH / LTC / TRX / USDC.
+            </p>
+            <div class="crypto-badges">
+              <span>USDT</span><span>TON</span><span>BTC</span><span>ETH</span><span>TRX</span>
+            </div>
+            <div class="pay-row" style="margin-top:12px">
+              <button class="btn primary block" type="button" data-pay-plan="care">
+                💎 Забота · 199 ₽ / мес
+              </button>
+            </div>
+            <div class="pay-row">
+              <button class="btn primary block" type="button" data-pay-plan="plus">
+                ✨ Плюс · 349 ₽ / мес
+              </button>
+            </div>
+            <button class="btn ghost block" type="button" id="checkPayBtn" style="margin-top:8px">
+              🔄 Я уже оплатил(а) — проверить
+            </button>
+            <p class="muted" id="payStatus" style="margin-top:8px"></p>
+          </div>
           <div id="plans" class="plans"></div>
         </section>
       </main>
@@ -225,10 +271,22 @@
         <button class="tab" data-go="coach" type="button">
           <span>💬</span><span>Коуч</span>
         </button>
-        <button class="tab" data-go="stats" type="button">
-          <span>📈</span><span>Отчёт</span>
+        <button class="tab" data-go="premium" type="button">
+          <span>💎</span><span>Pro</span>
         </button>
       </nav>
+    </div>
+
+    <div id="payModal" class="pay-modal hidden">
+      <div class="pay-modal-card">
+        <h2>Оплата в Crypto Bot</h2>
+        <p class="muted" id="payModalText">Счёт создан. Открой Crypto Bot и подтверди платёж.</p>
+        <button class="btn primary block" type="button" id="payModalOpen">Открыть Crypto Bot</button>
+        <button class="btn ghost block" type="button" id="payModalCheck" style="margin-top:8px">
+          Проверить оплату
+        </button>
+        <button class="linkish" type="button" id="payModalClose">Закрыть</button>
+      </div>
     </div>
 
     <div id="toast" class="toast hidden"></div>

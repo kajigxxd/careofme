@@ -153,14 +153,15 @@ async function loadMe() {
       state.focusDraft = [...(state.me.focusAreas || ["general"])];
       go("onboarding");
     }
+    updatePayBanner();
   } catch (e) {
     console.error(e);
     if (e.status === 401) {
       $("#greeting").textContent = "Открой через Telegram";
-      toast("Открой приложение из бота @berezhno_care_bot");
+      toast("Открой приложение из бота @careofme_bot");
     } else if (e.status === 0) {
       $("#greeting").textContent = "Нет сети";
-      toast("Сервер недоступен. Проверь деплой / туннель.");
+      toast("Сервер недоступен.");
     } else {
       $("#greeting").textContent = "Ошибка загрузки";
       toast("Не удалось загрузить профиль");
@@ -554,7 +555,142 @@ async function loadStats() {
   }
 }
 
-/* —— Premium —— */
+/* —— Premium / Crypto pay —— */
+state.lastInvoiceId = null;
+state.lastPayUrl = null;
+
+function openPayUrl(url) {
+  if (!url) return;
+  // Crypto Bot deep links must use openTelegramLink
+  try {
+    if (url.includes("t.me/") && tg?.openTelegramLink) {
+      tg.openTelegramLink(url);
+      return;
+    }
+    if (tg?.openLink) {
+      tg.openLink(url, { try_instant_view: false });
+      return;
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+  window.open(url, "_blank");
+}
+
+function showPayModal(plan, payUrl, invoiceId) {
+  state.lastInvoiceId = invoiceId;
+  state.lastPayUrl = payUrl;
+  const title = plan === "plus" ? "Плюс · 349 ₽" : "Забота · 199 ₽";
+  $("#payModalText").textContent =
+    `Тариф «${title}». Нажми «Открыть Crypto Bot», оплати USDT/TON/BTC… и вернись — «Проверить оплату».`;
+  $("#payModal").classList.remove("hidden");
+  const st = $("#payStatus");
+  if (st) st.textContent = `Счёт #${invoiceId} создан`;
+}
+
+function hidePayModal() {
+  $("#payModal")?.classList.add("hidden");
+}
+
+async function startCryptoPay(plan) {
+  if (plan === "free") {
+    try {
+      await api("/plan", { method: "POST", body: { plan: "free" } });
+      toast("Бесплатный тариф");
+      await loadMe();
+      renderPlans();
+      updatePayBanner();
+    } catch {
+      toast("Ошибка");
+    }
+    return;
+  }
+
+  toast("Создаю счёт…");
+  try {
+    const res = await api("/plan", { method: "POST", body: { plan } });
+    if (res.payment === "crypto" && res.payUrl) {
+      showPayModal(plan, res.payUrl, res.invoiceId);
+      openPayUrl(res.payUrl);
+      startPayPolling(res.invoiceId);
+      return;
+    }
+    if (res.payment === "demo" || res.premium) {
+      toast("Тариф активен ✨");
+      await loadMe();
+      renderPlans();
+      updatePayBanner();
+      return;
+    }
+    toast("Не удалось создать оплату");
+  } catch (e) {
+    console.error(e);
+    if (e.data?.error === "payments_not_configured") {
+      toast("Крипто-оплата не настроена на сервере");
+    } else if (e.data?.error === "invoice_failed") {
+      toast("Crypto Bot не создал счёт. Попробуй позже");
+    } else {
+      toast("Ошибка оплаты");
+    }
+  }
+}
+
+function startPayPolling(invoiceId) {
+  let n = 0;
+  if (state._payTimer) clearInterval(state._payTimer);
+  state._payTimer = setInterval(async () => {
+    n++;
+    const ok = await verifyPayment(invoiceId);
+    if (ok || n > 30) {
+      clearInterval(state._payTimer);
+      state._payTimer = null;
+    }
+  }, 4000);
+}
+
+async function verifyPayment(invoiceId) {
+  try {
+    const st = await api("/plan/check", {
+      method: "POST",
+      body: { invoiceId: invoiceId || state.lastInvoiceId || undefined },
+    });
+    if (st.premium) {
+      toast("Оплата прошла ✨");
+      hidePayModal();
+      await loadMe();
+      renderPlans();
+      updatePayBanner();
+      return true;
+    }
+    toast("Пока не видно оплату — подожди и нажми снова");
+    return false;
+  } catch {
+    toast("Не удалось проверить");
+    return false;
+  }
+}
+
+function updatePayBanner() {
+  const banner = $("#payBanner");
+  const chip = $("#payChip");
+  if (!banner) return;
+  if (state.me?.premium) {
+    const until = state.me.premiumUntil
+      ? new Date(state.me.premiumUntil).toLocaleDateString("ru-RU")
+      : "";
+    banner.innerHTML = `
+      <div class="pay-banner-title">✅ Подписка активна</div>
+      <p class="muted">Тариф «${state.me.plans?.[state.me.plan]?.title || state.me.plan}»${
+        until ? ` до ${until}` : ""
+      }</p>
+      <button class="linkish" data-go="premium" type="button">Управление →</button>`;
+    if (chip) chip.textContent = "✅ Pro";
+  } else if (state.me && state.me.cryptoPayConfigured === false) {
+    $("#payBannerText").textContent =
+      "Крипто-оплата на сервере выключена. Напиши в поддержку.";
+  }
+}
+
 function renderPlans() {
   const plans = state.me?.plans;
   if (!plans) {
@@ -562,91 +698,70 @@ function renderPlans() {
     return;
   }
   const current = state.me.plan || "free";
-  const cryptoOk = state.me.cryptoPayConfigured;
-  const payNote = cryptoOk
-    ? `<p class="muted">Оплата криптой через Crypto Bot: USDT, TON, BTC, ETH… (сумма в ₽)</p>`
-    : `<p class="muted">Крипто-оплата настраивается. Демо — если разрешено сервером.</p>`;
+  const cryptoOk = !!state.me.cryptoPayConfigured;
+  const info = $("#cryptoInfo");
+  if (info) {
+    info.style.display = state.me.premium ? "none" : "block";
+  }
 
   $("#plans").innerHTML =
-    payNote +
+    `<p class="muted" style="margin-bottom:10px">${
+      cryptoOk
+        ? "Ниже — детали тарифов. Кнопки оплаты криптой — сверху 👆"
+        : "⚠️ CRYPTO_PAY не активен на сервере"
+    }</p>` +
     Object.values(plans)
       .map((p) => {
-        const active = current === p.id && (p.id === "free" || state.me.premium);
-        const label =
-          p.id === "free"
-            ? active
-              ? "Активен"
-              : "Перейти на free"
-            : cryptoOk
-              ? `💎 Оплатить ${p.price}`
-              : "Активировать";
+        const active =
+          current === p.id && (p.id === "free" || state.me.premium);
         return `
       <div class="plan">
         <h3>${p.title}${active ? " · сейчас" : ""}</h3>
         <div class="price">${p.price}</div>
         <ul>${p.perks.map((x) => `<li>${x}</li>`).join("")}</ul>
-        <button class="btn ${active ? "ghost" : "primary"} block" data-plan="${p.id}" ${
-          active && p.id !== "free" ? "disabled" : ""
-        }>
-          ${active && p.id !== "free" ? "Активен" : label}
-        </button>
+        ${
+          p.id === "free"
+            ? `<button class="btn ghost block" data-plan="free" type="button">${
+                active ? "Активен" : "Остаться на free"
+              }</button>`
+            : active
+              ? `<button class="btn ghost block" type="button" disabled>Активен</button>`
+              : `<button class="btn primary block" data-pay-plan="${p.id}" type="button">💎 Оплатить криптой · ${p.price}</button>`
+        }
       </div>`;
       })
       .join("");
 
-  $all("[data-plan]").forEach((btn) => {
-    btn.onclick = async () => {
-      try {
-        const res = await api("/plan", {
-          method: "POST",
-          body: { plan: btn.dataset.plan },
-        });
-        if (res.payment === "crypto" && res.payUrl) {
-          toast("Открываю Crypto Bot…");
-          if (tg?.openTelegramLink) {
-            tg.openTelegramLink(res.payUrl);
-          } else if (tg?.openLink) {
-            tg.openLink(res.payUrl);
-          } else {
-            window.open(res.payUrl, "_blank");
-          }
-          // poll a few times
-          let n = 0;
-          const t = setInterval(async () => {
-            n++;
-            try {
-              const st = await api("/plan/check", {
-                method: "POST",
-                body: { invoiceId: res.invoiceId },
-              });
-              if (st.premium) {
-                clearInterval(t);
-                toast("Оплата прошла ✨");
-                await loadMe();
-                renderPlans();
-              }
-            } catch (_) {}
-            if (n > 20) clearInterval(t);
-          }, 4000);
-          return;
-        }
-        toast(res.payment === "demo" ? "Демо-тариф активен" : "Тариф обновлён");
-        await loadMe();
-        renderPlans();
-      } catch (e) {
-        if (e.data?.error === "payments_not_configured") {
-          toast("Оплата не настроена (CRYPTO_PAY_TOKEN)");
-        } else toast("Ошибка оплаты");
-      }
+  bindPayButtons(document);
+}
+
+function bindPayButtons(root = document) {
+  root.querySelectorAll("[data-pay-plan]").forEach((btn) => {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      startCryptoPay(btn.getAttribute("data-pay-plan"));
+    };
+  });
+  root.querySelectorAll("[data-plan]").forEach((btn) => {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      startCryptoPay(btn.getAttribute("data-plan"));
     };
   });
 }
 
 /* —— boot —— */
 bindNav();
+bindPayButtons(document);
+
+$("#checkPayBtn")?.addEventListener("click", () => verifyPayment());
+$("#payModalOpen")?.addEventListener("click", () => openPayUrl(state.lastPayUrl));
+$("#payModalCheck")?.addEventListener("click", () => verifyPayment());
+$("#payModalClose")?.addEventListener("click", hidePayModal);
+
 loadMe();
 
-// Dev preview without Telegram: soft banner
+// Dev preview without Telegram
 if (!tg?.initData) {
   console.info("Preview mode: open via Telegram bot for full auth");
 }
