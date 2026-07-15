@@ -36,7 +36,7 @@ function buildUserContext(user: UserProfile): string {
   const parts: string[] = [];
   parts.push(`Имя: ${user.firstName || "друг"}`);
   parts.push(
-    `Фокус: ${user.focusAreas.map((f) => FOCUS_LABELS[f] || f).join(", ")}`
+    `Фокус чувств: ${user.focusAreas.map((f) => FOCUS_LABELS[f] || f).join(", ") || "не указан"}`
   );
   parts.push(`Серия чек-инов: ${user.streak} дн.`);
   parts.push(`Тариф: ${user.plan || "free"}`);
@@ -46,16 +46,41 @@ function buildUserContext(user: UserProfile): string {
     parts.push(
       `Последний чек-ин (${last.at.slice(0, 16)}): настроение ${last.mood}/5, энергия ${last.energy}/5, стресс ${last.stress}/5` +
         (last.sleep ? `, сон ${last.sleep}/5` : "") +
-        (last.note ? `. Заметка: «${last.note.slice(0, 120)}»` : "")
+        (last.note ? `. Заметка человека: «${last.note.slice(0, 160)}»` : "")
     );
   }
 
-  const stress = user.stress[0];
-  if (stress) {
+  const week = user.checkins.slice(0, 7);
+  if (week.length >= 2) {
+    const avgM = week.reduce((s, c) => s + c.mood, 0) / week.length;
+    const avgE = week.reduce((s, c) => s + c.energy, 0) / week.length;
+    const avgS = week.reduce((s, c) => s + c.stress, 0) / week.length;
     parts.push(
-      `Последний стресс: ${stress.level}/5` +
-        (stress.source ? ` · ${stress.source}` : "") +
-        (stress.note ? ` · ${stress.note.slice(0, 80)}` : "")
+      `За ${week.length} чек-инов: ср. настроение ${avgM.toFixed(1)}, энергия ${avgE.toFixed(1)}, стресс ${avgS.toFixed(1)}`
+    );
+    // Trend hint
+    if (week.length >= 3) {
+      const older = week.slice(Math.floor(week.length / 2));
+      const newer = week.slice(0, Math.floor(week.length / 2));
+      const oM = older.reduce((s, c) => s + c.mood, 0) / older.length;
+      const nM = newer.reduce((s, c) => s + c.mood, 0) / newer.length;
+      if (nM - oM <= -0.6) parts.push("Тренд: настроение недавно ниже, чем раньше.");
+      else if (nM - oM >= 0.6) parts.push("Тренд: настроение недавно чуть выше.");
+    }
+  }
+
+  const stressPts = user.stress.slice(0, 4);
+  if (stressPts.length) {
+    parts.push(
+      "Недавний стресс: " +
+        stressPts
+          .map(
+            (s) =>
+              `${s.level}/5` +
+              (s.source ? ` (${s.source})` : "") +
+              (s.note ? ` «${s.note.slice(0, 50)}»` : "")
+          )
+          .join("; ")
     );
   }
 
@@ -64,20 +89,25 @@ function buildUserContext(user: UserProfile): string {
     parts.push(`Последняя практика: «${practice.title}»`);
   }
 
-  const journal = user.journal[0];
-  if (journal) {
+  const journals = user.journal.slice(0, 3);
+  if (journals.length) {
     parts.push(
-      `Последняя запись в дневнике: «${journal.text.slice(0, 150)}»`
+      "Дневник (фрагменты): " +
+        journals.map((j) => `«${(j.text || "").slice(0, 120)}»`).join(" | ")
     );
   }
 
-  // Pattern from week
-  const week = user.checkins.slice(0, 7);
-  if (week.length >= 3) {
-    const avgM = week.reduce((s, c) => s + c.mood, 0) / week.length;
-    const avgS = week.reduce((s, c) => s + c.stress, 0) / week.length;
+  // Recent coach thread for continuity (beyond messages already in chat)
+  const recentCoach = user.coachMessages.slice(-4);
+  if (recentCoach.length) {
     parts.push(
-      `За ${week.length} чек-инов: ср. настроение ${avgM.toFixed(1)}, ср. стресс ${avgS.toFixed(1)}`
+      "Недавний диалог с коучем (сжато): " +
+        recentCoach
+          .map(
+            (m) =>
+              `${m.role === "user" ? "он/она" : "коуч"}: ${m.content.slice(0, 80)}`
+          )
+          .join(" · ")
     );
   }
 
@@ -122,23 +152,35 @@ export async function coachReply(
     };
   }
 
-  const history = user.coachMessages.slice(-16).map((m) => ({
+  // More history for continuity; trim long bubbles
+  const history = user.coachMessages.slice(-20).map((m) => ({
     role: m.role as "user" | "assistant",
-    content: m.content,
+    content: m.content.slice(0, 1200),
   }));
 
-  const system = buildCoachSystemPrompt(user) + "\n\n" + buildUserContext(user);
+  const system =
+    buildCoachSystemPrompt(user) +
+    "\n\nДоп. снимок состояния:\n" +
+    buildUserContext(user);
+
   const practiceHint =
-    `\n\nЕсли уместно, мягко предложи практику «${suggested.emoji} ${suggested.title}» (~${suggested.durationMin} мин) — id: ${suggested.id}. ` +
-    `Не навязывай. Один раз за ответ максимум.`;
+    `\n\nПрактику «${suggested.emoji} ${suggested.title}» (~${suggested.durationMin} мин) предлагай ТОЛЬКО если она реально подходит к тексту человека. ` +
+    `Не в каждом ответе. Не как скрипт «открой практику X». Можно просто словами, без id. ` +
+    `Если человек в остром истощении — лучше ещё меньший шаг, чем полноценная практика.`;
+
+  const turnHint =
+    `\n\nСейчас ответь на ЭТО сообщение человека. Не повторяй дословно прошлые ответы. ` +
+    `Не используй шаблон «валидация + 3 пункта + вопрос» как ритуал. ` +
+    `Сделай ответ индивидуальным: отзеркаль его формулировки, учти чек-ины/фокус. ` +
+    `Цель — чтобы после прочтения стало чуть легче или яснее, а не стыднее и не «должен ещё работать над собой».`;
 
   try {
     const resp = await client.chat.completions.create({
       model: modelName(),
-      temperature: 0.75,
-      max_tokens: 700,
+      temperature: 0.88,
+      max_tokens: 1100,
       messages: [
-        { role: "system", content: system + practiceHint },
+        { role: "system", content: system + practiceHint + turnHint },
         ...history,
         { role: "user", content: userMessage },
       ],
@@ -150,6 +192,11 @@ export async function coachReply(
 
     // Strip markdown-heavy if any accidental
     text = text.replace(/\*\*/g, "*");
+    // Soften over-scripted openers if model slips
+    text = text.replace(
+      /^(Я слышу тебя\.?|Слышу тебя\.?|Понимаю тебя\.?)\s*/i,
+      ""
+    );
 
     return {
       text,
@@ -159,53 +206,91 @@ export async function coachReply(
   } catch (err) {
     console.error("AI coach error:", err);
     return {
-      text:
-        fallbackCoach(user, userMessage, suggested.id) +
-        "\n\n_Сейчас модель недоступна — ответил запасным режимом._",
+      text: fallbackCoach(user, userMessage, suggested.id),
       usedFallback: true,
       suggestedPracticeId: suggested.id,
     };
   }
 }
 
-/** Short reflection after check-in (1–3 sentences) */
+/** Reflection after check-in — personal, not a canned tip */
 export async function checkinInsight(
   user: UserProfile
 ): Promise<string | null> {
   const last = user.checkins[0];
   if (!last) return null;
 
+  const name = user.firstName || "";
+  const focus = user.focusAreas.map((f) => FOCUS_LABELS[f] || f).join(", ");
   const client = getClient();
   if (!client) {
-    if (last.stress >= 4) {
-      return "Стресс высокий — 3 минуты дыхания или заземления сейчас уместнее, чем «разобраться со всем».";
+    const bits: string[] = [];
+    if (name) bits.push(`${name},`);
+    if (last.mood <= 2 && last.stress >= 4) {
+      bits.push(
+        `и настроение, и стресс сегодня тяжёлые — это уже много информации, не «просто плохой день».`
+      );
+      bits.push(
+        `Не обязательно сейчас всё чинить: достаточно одной опоры для тела (вода, воздух, тёплое) и разрешения сделать меньше.`
+      );
+    } else if (last.stress >= 4) {
+      bits.push(
+        `стресс ${last.stress}/5 — система в режиме «напрячься».`
+      );
+      bits.push(
+        `Имеет смысл не разгонять голову, а чуть сбросить тело: длинный выдох, плечи вниз, 2–3 минуты без экрана.`
+      );
+    } else if (last.mood <= 2) {
+      bits.push(
+        `настроение ${last.mood}/5 — тяжело, и это уже замечено.`
+      );
+      bits.push(
+        `Сегодня можно не тянуть норму «как обычно». Один крошечный жест заботы о себе считается.`
+      );
+    } else if (last.energy <= 2) {
+      bits.push(
+        `энергии ${last.energy}/5 — мало топлива, не лень.`
+      );
+      bits.push(
+        `Лучше укоротить день на 10–20%, чем доказывать себе выносливость.`
+      );
+    } else {
+      bits.push(
+        `чек-ин: настроение ${last.mood}, энергия ${last.energy}, стресс ${last.stress}. Есть на что опереться.`
+      );
+      if (last.note) {
+        bits.push(`Ты отметил(а): «${last.note.slice(0, 80)}» — это важно не потерять.`);
+      }
     }
-    if (last.mood <= 2) {
-      return "Тяжело — и это уже замечено. Одна маленькая опора (вода, воздух, короткая практика) достаточно на сейчас.";
+    if (focus && last.mood <= 3) {
+      bits.push(`На фоне твоего фокуса (${focus}) это особенно понятно.`);
     }
-    if (last.energy <= 2) {
-      return "Энергии мало. Сегодня нормально делать меньше, чем «надо».";
-    }
-    return "Чек-ин сохранён. Есть опора — можно закрепить короткой практикой.";
+    return bits.join(" ");
   }
 
   try {
     const resp = await client.chat.completions.create({
       model: modelName(),
-      temperature: 0.6,
-      max_tokens: 180,
+      temperature: 0.85,
+      max_tokens: 320,
       messages: [
         {
           role: "system",
           content:
-            "Ты — careofme. Дай 1–3 коротких предложения на русском после чек-ина: валидация + один микро-совет. Без диагнозов. Без приветствия.",
+            "Ты — careofme. Человек только что сделал чек-ин. " +
+            "Напиши 3–6 живых предложений на русском: как читается его состояние СЕГОДНЯ, " +
+            "с опорой на цифры, заметку и фокус. Без приветствия, без диагнозов, без списка «1)2)3)». " +
+            "Не загоняй: не дави «исправь себя», дай облегчение и максимум один мягкий вариант опоры. " +
+            "Звучи по-человечески, не как шаблон приложения.",
         },
         {
           role: "user",
-          content: `Настроение ${last.mood}/5, энергия ${last.energy}/5, стресс ${last.stress}/5` +
+          content:
+            `${buildUserContext(user)}\n\n` +
+            `Свежий чек-ин: настроение ${last.mood}/5, энергия ${last.energy}/5, стресс ${last.stress}/5` +
             (last.sleep ? `, сон ${last.sleep}/5` : "") +
-            (last.note ? `. Заметка: ${last.note}` : "") +
-            `. Фокус: ${user.focusAreas.join(", ")}`,
+            (last.note ? `. Заметка: «${last.note}»` : "") +
+            `. Фокус: ${focus || "не указан"}.`,
         },
       ],
     });
@@ -221,71 +306,89 @@ function fallbackCoach(
   practiceId?: string
 ): string {
   const lower = message.toLowerCase();
-  const name = user.firstName ? `${user.firstName}, ` : "";
+  const name = user.firstName || "";
   const p = practiceId ? getPractice(practiceId) : undefined;
-  const practiceLine = p
-    ? `\n\nМожно открыть практику: *${p.emoji} ${p.title}* (~${p.durationMin} мин).`
+  const last = user.checkins[0];
+  const focus = user.focusAreas
+    .slice(0, 2)
+    .map((f) => FOCUS_LABELS[f] || f)
+    .join(" и ");
+
+  // Pull a concrete fragment from their message so it doesn't feel generic
+  const snippet = message.replace(/\s+/g, " ").trim().slice(0, 90);
+  const open =
+    snippet.length > 12
+      ? `${name ? name + ", " : ""}ты пишешь: «${snippet}${message.length > 90 ? "…" : ""}» — это уже многое объясняет.`
+      : `${name ? name + ", " : ""}я с тобой в этом.`;
+
+  const checkinBit = last
+    ? ` В последнем чек-ине у тебя настроение ${last.mood}/5 и стресс ${last.stress}/5` +
+      (last.note ? `, и ты отмечал(а): «${last.note.slice(0, 60)}»` : "") +
+      "."
     : "";
+
+  const focusBit = focus
+    ? ` На фоне того, что тебе близко (${focus}), это особенно чувствительно.`
+    : "";
+
+  const softClose = p
+    ? `\n\nЕсли силы есть — можно ${p.emoji} «${p.title}» (~${p.durationMin} мин). Если нет — достаточно воды, воздуха или просто ничего не делать 10 минут. Оба варианта нормальны.`
+    : `\n\nСейчас можно не «чинить жизнь». Достаточно одного бережного жеста к себе — или паузы без задачи.`;
 
   if (/не сплю|бессон|не могу уснуть|кошмар|отключиться/.test(lower)) {
     return (
-      `${name}бессонница часто усиливается от борьбы со сном.\n\n` +
-      `На 5 минут:\n` +
-      `1) Запиши 3 «хвоста» дел на завтра\n` +
-      `2) Дыхание: вдох 4, выдох 6–8 × 5\n` +
-      `3) Фраза: «Мне не обязательно уснуть — достаточно отдыхать»` +
-      practiceLine
+      `${open}${checkinBit}\n\n` +
+      `Когда сон ускользает, часто включается борьба: «надо уснуть любой ценой» — и она сама будит.` +
+      focusBit +
+      `\n\nНа ближайшие минуты можно снять с себя цель уснуть: достаточно лежать и отдыхать. ` +
+      `Если мысль крутится — коротко сбросить её на бумагу/в заметки, без решения. ` +
+      `Длинный выдох иногда помогает телу, но это не экзамен.` +
+      softClose
     );
   }
 
   if (/тревог|паник|волн|сердце колотится|страшно|нервн/.test(lower)) {
     return (
-      `${name}тревога в теле — неприятно, но не всегда значит опасность.\n\n` +
-      `2 минуты:\n` +
-      `• 5 предметов, которые видишь\n` +
-      `• 4, которые можешь потрогать\n` +
-      `• 3 звука\n` +
-      `Потом квадратное дыхание 4–4–4–4.` +
-      practiceLine +
-      `\n\nКакая мысль крутится под тревогой — одной фразой?`
+      `${open}${checkinBit}\n\n` +
+      `Тревога часто ощущается в теле громче, чем в словах — и это пугает само по себе.` +
+      focusBit +
+      `\n\nНе обязательно прямо сейчас «понять причину». Можно чуть заземлиться: назвать вслух 3 вещи, которые видишь, ` +
+      `почувствовать стопы/опору, сделать несколько выдохов длиннее вдоха. ` +
+      `Если мысль очень липкая — можно мягко отделить: «это мысль, не приговор».` +
+      softClose
     );
   }
 
   if (/выгор|нет сил|выжат|не могу больше|апати|устал|вымотан/.test(lower)) {
     return (
-      `${name}похоже на истощение — это сигнал, не «лень».\n\n` +
-      `Сегодня не про подвиг:\n` +
-      `• Что одно ты уже сделал(а)? (даже «встал» считается)\n` +
-      `• Что убрать/отложить на 10%?\n` +
-      `• 3 минуты — рука на груди, длинный выдох` +
-      practiceLine
+      `${open}${checkinBit}\n\n` +
+      `Это больше похоже на истощение, чем на «лень» или слабость.` +
+      focusBit +
+      `\n\nСегодня можно убрать героизм: что реально можно отложить или упростить на 10%? ` +
+      `Даже «встал и написал сюда» — уже действие. ` +
+      `Телу сейчас важнее восстановление, чем продуктивность.` +
+      softClose
     );
   }
 
-  if (/отношен|ссор|обид|один|одиноч|партн|друг/.test(lower)) {
+  if (/отношен|ссор|обид|один|одиноч|партн|друг|преда|бросил/.test(lower)) {
     return (
-      `${name}в отношениях часто болит не «факт», а смысл, который мы ему придали.\n\n` +
-      `1) Что именно произошло — одной фразой, без оценки?\n` +
-      `2) Какая эмоция в теле 0–10?\n` +
-      `3) Что тебе нужно: быть услышанным, пространство, ясность?\n` +
-      `Можно ответить коротко — разберём бережно.` +
-      practiceLine
+      `${open}${checkinBit}\n\n` +
+      `В отношениях часто болит не только событие, а то, что оно значит для тебя: нужность, безопасность, уважение.` +
+      focusBit +
+      `\n\nМожно не разбирать всё сразу. Достаточно заметить: какая эмоция сейчас главная — обида, страх, злость, пустота? ` +
+      `И что тебе нужно в первую очередь: быть услышанным, пространство, ясность, тепло. ` +
+      `Ответ себе одной фразой уже чуть разгружает.` +
+      softClose
     );
   }
-
-  const last = user.checkins[0];
-  const moodHint = last
-    ? `В последнем чек-ине настроение ${last.mood}/5, стресс ${last.stress}/5. `
-    : "";
 
   return (
-    `${name}слышал(а) тебя. ${moodHint}` +
-    `Давай по делу и бережно.\n\n` +
-    `1) Что сейчас тяжелее всего — одной фразой?\n` +
-    `2) Интенсивность 0–10?\n` +
-    `3) Какой самый маленький шаг на 15 минут сделал бы чуть легче?\n\n` +
-    `Можешь просто цифрой и фразой.` +
-    practiceLine
+    `${open}${checkinBit}${focusBit}\n\n` +
+    `Не буду загонять тебя в план «исправь себя». ` +
+    `Если хочешь — напиши ещё чуть подробнее, что сейчас давит сильнее всего. ` +
+    `Если сил мало — можно просто остаться с этим текстом: ты уже сделал(а) шаг, когда написал(а).` +
+    softClose
   );
 }
 
@@ -324,17 +427,21 @@ export async function weeklyInsight(user: UserProfile): Promise<string> {
   try {
     const resp = await client.chat.completions.create({
       model: modelName(),
-      temperature: 0.6,
-      max_tokens: 550,
+      temperature: 0.8,
+      max_tokens: 750,
       messages: [
         {
           role: "system",
           content:
-            "Ты — careofme. Недельный отчёт на русском: 3 наблюдения + 2 мягкие рекомендации + 1 практика. Без диагнозов. 120–200 слов.",
+            "Ты — careofme. Недельный разбор на русском для конкретного человека. " +
+            "Пиши живо, персонально, 150–280 слов. " +
+            "Свяжи цифры чек-инов с его фокусом чувств и заметками. " +
+            "Не шаблон «3 наблюдения + 2 совета». Не загоняй в план самосовершенствования. " +
+            "Дай облегчающую рамку + 1–2 мягких опоры на выбор. Без диагнозов.",
         },
         {
           role: "user",
-          content: `Фокус: ${user.focusAreas.join(", ")}\nStreak: ${user.streak}\n${buildUserContext(user)}\nДанные:\n${lines}`,
+          content: `${buildUserContext(user)}\n\nДанные чек-инов:\n${lines}`,
         },
       ],
     });
@@ -514,21 +621,20 @@ export async function fullFeelingsAnalysis(
   try {
     const resp = await client.chat.completions.create({
       model: modelName(),
-      temperature: 0.55,
-      max_tokens: 900,
+      temperature: 0.78,
+      max_tokens: 1200,
       messages: [
         {
           role: "system",
           content:
-            "Ты — careofme, бережный AI-аналитик самочувствия на русском. " +
-            "Сделай ПОЛНЫЙ разбор чувств человека по данным. Структура (заголовки коротко):\n" +
-            "1) Что сейчас на поверхности (эмоции простыми словами)\n" +
-            "2) Что может лежать глубже (гипотезы, не диагнозы)\n" +
-            "3) Паттерны по чек-инам/стрессу (если данных мало — скажи честно)\n" +
-            "4) Связь с выбранными чувствами-фокусами\n" +
-            "5) 2–3 мягких опоры на ближайшие сутки\n" +
-            "6) Когда лучше живая помощь (если risk hard — обязательно мягко)\n" +
-            "Без диагнозов, без лекарств, без токсичного позитива. 180–320 слов. Не терапевт.",
+            "Ты — careofme: внимательный разбор чувств на русском для ОДНОГО человека. " +
+            "Пиши как умный тёплый человек, не как отчёт-шаблон и не как скрипт коучинга.\n" +
+            "Собери цельную картину: что на поверхности, что может быть глубже (гипотезы, не диагнозы), " +
+            "как это стыкуется с его фокусом и цифрами, какие паттерны видны.\n" +
+            "Важно: НЕ загонять — не превращай разбор в список недостатков и «надо работать над собой». " +
+            "Цель — чтобы человеку стало понятнее и чуть спокойнее.\n" +
+            "В конце — 2 мягкие опоры на выбор (не приказы). Если risk=hard — мягко про живую помощь (8-800-2000-122, 112).\n" +
+            "200–380 слов. Без лекарств, без диагнозов, без токсичного позитива. Можно короткие подзаголовки, но не жёсткий нумерованный протокол.",
         },
         {
           role: "user",
@@ -597,13 +703,17 @@ export async function autoSupportOnBadResult(
   const client = getClient();
   if (!client) {
     const name = user.firstName ? `${user.firstName}, ` : "";
+    const focus = user.focusAreas
+      .slice(0, 2)
+      .map((f) => FOCUS_LABELS[f] || f)
+      .join(" и ");
     const text =
-      `${name}сейчас тяжеловато — и это уже замечено.\n\n` +
-      `На ближайшие 10 минут:\n` +
-      `1) Выдох длиннее вдоха × 5\n` +
-      `2) Вода / воздух / еда — что доступнее\n` +
-      `3) Практика «${practice.emoji} ${practice.title}» (~${practice.durationMin} мин), если есть силы\n\n` +
-      `Если совсем плохо и есть мысли о вреде себе — 8-800-2000-122 или 112. Ты не обязан(а) справляться в одиночку.`;
+      `${name}цифры сейчас тяжёлые (${scoreLine}). Это не «ты слабый» — это сигнал системы.\n\n` +
+      (focus ? `С учётом того, что тебе близко (${focus}), такое состояние особенно изматывает.\n\n` : "") +
+      `Не нужно прямо сейчас разгребать всю жизнь. Достаточно снизить давление на тело: ` +
+      `вода или воздух, плечи вниз, несколько выдохов длиннее вдоха. ` +
+      `Если останутся силы — можно «${practice.emoji} ${practice.title}», но это не обязанность.\n\n` +
+      `Если совсем невыносимо и есть мысли о вреде себе — 8-800-2000-122 или 112. Ты не обязан(а) справляться в одиночку.`;
     return {
       text,
       practiceId: practice.id,
@@ -616,29 +726,32 @@ export async function autoSupportOnBadResult(
   try {
     const resp = await client.chat.completions.create({
       model: modelName(),
-      temperature: 0.7,
-      max_tokens: 420,
+      temperature: 0.88,
+      max_tokens: 650,
       messages: [
         {
           role: "system",
           content:
-            "Ты — careofme. Пользователь только что отметил плохие показатели. " +
-            "Дай АВТОМАТИЧЕСКУЮ бережную помощь на русском: 1) валидация 2) что происходит в теле/голове простыми словами " +
-            "3) один микро-шаг на 5–10 минут 4) мягко предложи практику (название дано). " +
-            "Без диагнозов, без «возьми себя в руки», 80–140 слов. Если признаки кризиса — линия доверия.",
+            "Ты — careofme. Человек только что отметил плохие показатели — нужна АВТОПОМОЩЬ. " +
+            "Пиши 120–220 слов на русском, живо и персонально. " +
+            "Не скрипт «валидация + 3 пункта + практика». " +
+            "Сначала сними стыд и давление, свяжи цифры с его фокусом/контекстом, " +
+            "предложи 1–2 мягких опоры на выбор (можно практику, но не как приказ). " +
+            "Цель — чтобы стало чуть легче, а не «надо срочно работать над собой». " +
+            "Без диагнозов. Если похоже на кризис — линия доверия 8-800-2000-122, 112.",
         },
         {
           role: "user",
           content:
             `${buildUserContext(user)}\n` +
             `Триггер: ${trigger}\n${scoreLine}\n` +
-            `Практика к предложению: ${practice.emoji} ${practice.title} (${practice.durationMin} мин, id ${practice.id})`,
+            `Практика (предложить мягко, если уместно): ${practice.emoji} ${practice.title} (~${practice.durationMin} мин)`,
         },
       ],
     });
     const text =
       resp.choices[0]?.message?.content?.trim() ||
-      "Сейчас тяжело. Сделай длинный выдох и одну маленькую вещь для тела — вода или воздух.";
+      "Сейчас тяжело. Можно не чинить всё сразу — достаточно воды, воздуха и разрешения сделать меньше.";
     return {
       text: text.replace(/\*\*/g, "*"),
       practiceId: practice.id,
@@ -650,8 +763,9 @@ export async function autoSupportOnBadResult(
     console.error("autoSupportOnBadResult", e);
     return {
       text:
-        "Сейчас тяжело — это уже сигнал. Три длинных выдоха, глоток воды, и если можешь — короткая практика. " +
-        `Можно открыть «${practice.emoji} ${practice.title}».`,
+        "Сейчас тяжело — и это уже достаточно, чтобы замедлиться. " +
+        "Не загоняй себя в «надо исправиться». Глоток воды, длинный выдох, меньше дел на ближайший час. " +
+        `Если захочешь опору — «${practice.emoji} ${practice.title}», без обязательства.`,
       practiceId: practice.id,
       practiceTitle: `${practice.emoji} ${practice.title}`,
       usedFallback: true,
