@@ -28,7 +28,7 @@ async function configureMenuButton(webappUrl?: string) {
       await bot.api.setChatMenuButton({
         menu_button: {
           type: "web_app",
-          text: "Открыть Бережно",
+          text: "Открыть careofme",
           web_app: { url: webappUrl },
         },
       });

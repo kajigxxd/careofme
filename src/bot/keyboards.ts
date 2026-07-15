@@ -12,7 +12,7 @@ export function mainMenuKeyboard() {
   const kb = new Keyboard();
   const url = webappUrl();
   if (url) {
-    kb.webApp("🌿 Открыть приложение", url).row();
+    kb.webApp("🌿 Открыть careofme", url).row();
   }
   return kb
     .text("🌤 Чек-ин")
@@ -33,7 +33,7 @@ export function mainMenuKeyboard() {
 export function openAppKeyboard() {
   const url = webappUrl();
   if (!url) return undefined;
-  return new InlineKeyboard().webApp("🌿 Открыть Бережно", url);
+  return new InlineKeyboard().webApp("🌿 Открыть careofme", url);
 }
 
 export function moodKeyboard(prefix: string) {
