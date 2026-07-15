@@ -98,6 +98,8 @@ export function afterCheckinKeyboard() {
     .row()
     .text("💬 Коротко с AI-коучем", "nav:coach")
     .row()
+    .text("🪞 Анализ чувств (Плюс)", "feelings_analysis")
+    .row()
     .text("« В меню", "nav:home");
 }
 

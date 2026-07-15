@@ -946,3 +946,43 @@ h2 {
 .auth-banner .btn {
   width: 100%;
 }
+
+.support-block {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--calm-mist) 55%, var(--card));
+  border: 1px solid var(--border);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.support-help {
+  background: color-mix(in srgb, var(--calm-glow) 55%, var(--card));
+  border-color: color-mix(in srgb, var(--calm-btn) 35%, var(--border));
+}
+
+.risk-chip {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+
+.risk-chip.ok {
+  background: color-mix(in srgb, var(--calm-btn) 25%, var(--card));
+  color: var(--calm-btn-deep);
+}
+
+.risk-chip.watch {
+  background: color-mix(in srgb, #e0c070 30%, var(--card));
+  color: #8a6a20;
+}
+
+.risk-chip.hard {
+  background: color-mix(in srgb, #c97b7b 28%, var(--card));
+  color: #8a4040;
+}

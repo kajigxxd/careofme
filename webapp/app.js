@@ -468,6 +468,7 @@ async function loadMe() {
       go("onboarding");
     }
     updatePayBanner();
+    updateFeelingsAnalysisUi();
   } catch (e) {
     console.error("loadMe", e);
     if (e.status === 401) {
@@ -615,7 +616,17 @@ async function submitCheckin() {
     toast(`Сохранено · серия ${res.streak} 🔥`);
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
     await loadMe();
-    go("home");
+    if (res.insight || res.autoHelp || res.needsSupport) {
+      showSupportResult({
+        title: "Чек-ин сохранён",
+        meta: `Серия ${res.streak} дн. · настроение ${state.checkin.mood}/5 · стресс ${state.checkin.stress}/5`,
+        insight: res.insight,
+        autoHelp: res.autoHelp,
+        needsSupport: res.needsSupport,
+      });
+    } else {
+      go("home");
+    }
   } catch {
     toast("Ошибка сохранения");
   }
@@ -725,16 +736,143 @@ function renderStressUI() {
   }
 }
 
+function showSupportResult({ title, meta, insight, autoHelp, needsSupport }) {
+  state.lastAutoHelp = autoHelp || null;
+  if ($("#supportTitle")) $("#supportTitle").textContent = title || "Сохранено";
+  if ($("#supportMeta")) $("#supportMeta").textContent = meta || "";
+
+  const insightEl = $("#supportInsight");
+  if (insightEl) {
+    if (insight) {
+      insightEl.classList.remove("hidden");
+      insightEl.textContent = insight;
+    } else {
+      insightEl.classList.add("hidden");
+      insightEl.textContent = "";
+    }
+  }
+
+  const helpEl = $("#supportHelp");
+  if (helpEl) {
+    if (autoHelp?.text) {
+      helpEl.classList.remove("hidden");
+      helpEl.textContent =
+        (needsSupport ? "🛟 Автопомощь (Плюс)\n\n" : "") + autoHelp.text;
+    } else {
+      helpEl.classList.add("hidden");
+      helpEl.textContent = "";
+    }
+  }
+
+  const practiceBtn = $("#supportPracticeBtn");
+  if (practiceBtn) {
+    if (autoHelp?.practiceId) {
+      practiceBtn.style.display = "";
+      practiceBtn.dataset.practiceId = autoHelp.practiceId;
+      practiceBtn.textContent = autoHelp.practiceTitle
+        ? `🧘 ${autoHelp.practiceTitle}`
+        : "🧘 Практика";
+    } else {
+      practiceBtn.style.display = needsSupport ? "" : "none";
+      practiceBtn.dataset.practiceId = "";
+      practiceBtn.textContent = "🧘 Практика";
+    }
+  }
+
+  go("support-result");
+}
+
+async function runFeelingsAnalysis() {
+  const out = $("#feelingsAnalysisOut");
+  const isPlus =
+    state.me?.premium && state.me?.plan === "plus";
+  if (!isPlus) {
+    toast("Полный анализ — в тарифе Плюс");
+    go("premium");
+    return;
+  }
+  if (out) {
+    out.classList.remove("hidden");
+    out.textContent = "Собираю разбор чувств…";
+  }
+  toast("Анализирую…");
+  try {
+    const data = await api("/analysis/feelings");
+    const risk = data.summary?.riskLevel || "ok";
+    const riskLabel =
+      risk === "hard" ? "тяжело" : risk === "watch" ? "внимание" : "опора";
+    const chip = `<span class="risk-chip ${risk}">уровень: ${riskLabel}</span>`;
+    const statsLine =
+      data.summary &&
+      (data.summary.avgMood != null || data.summary.checkinCount)
+        ? `\n\nСр. настроение ${
+            data.summary.avgMood != null
+              ? data.summary.avgMood.toFixed(1)
+              : "—"
+          } · стресс ${
+            data.summary.avgStress != null
+              ? data.summary.avgStress.toFixed(1)
+              : "—"
+          } · чек-инов ${data.summary.checkinCount || 0}`
+        : "";
+    if (out) {
+      out.innerHTML =
+        chip +
+        `<div style="margin-top:8px;white-space:pre-wrap">${escapeHtml(
+          data.text || ""
+        )}${escapeHtml(statsLine)}</div>`;
+    }
+    // Also show as dedicated result screen
+    showSupportResult({
+      title: "Полный анализ чувств",
+      meta: `Плюс · уровень: ${riskLabel}`,
+      insight: data.text,
+      autoHelp: null,
+      needsSupport: risk === "hard",
+    });
+  } catch (e) {
+    if (e.status === 403) {
+      toast("Нужен тариф Плюс");
+      go("premium");
+    } else {
+      toast(apiErrorMessage(e) || "Не удалось собрать анализ");
+      if (out) out.textContent = "Не удалось загрузить анализ.";
+    }
+  }
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function updateFeelingsAnalysisUi() {
+  const isPlus = state.me?.premium && state.me?.plan === "plus";
+  const homeBtn = $("#feelingsAnalysisBtn");
+  if (homeBtn) {
+    homeBtn.style.display = isPlus ? "" : "none";
+  }
+  const hint = $("#feelingsAnalysisHint");
+  if (hint) {
+    hint.textContent = isPlus
+      ? "Разбор по фокусу, чек-инам, стрессу и дневнику. Не диагноз — ориентир."
+      : "Полный разбор фокуса, чек-инов, стресса и дневника — в тарифе Плюс.";
+  }
+}
+
 async function onStressSave() {
   if (!state.stressLevel) {
     toast("Выбери уровень");
     return;
   }
   try {
-    await api("/stress", {
+    const level = state.stressLevel;
+    const res = await api("/stress", {
       method: "POST",
       body: {
-        level: state.stressLevel,
+        level,
         source: state.stressSource || undefined,
         note: $("#stressNote")?.value?.trim() || undefined,
       },
@@ -744,7 +882,17 @@ async function onStressSave() {
     state.stressSource = null;
     if ($("#stressNote")) $("#stressNote").value = "";
     await loadMe();
-    go("home");
+    if (res.autoHelp || res.needsSupport) {
+      showSupportResult({
+        title: "Стресс записан",
+        meta: `Уровень ${level}/5`,
+        insight: null,
+        autoHelp: res.autoHelp,
+        needsSupport: res.needsSupport,
+      });
+    } else {
+      go("home");
+    }
   } catch {
     toast("Ошибка");
   }
@@ -1129,6 +1277,7 @@ async function loadStats() {
         })
         .join("");
     }
+    updateFeelingsAnalysisUi();
   } catch {
     $("#statsCard").innerHTML = `<p class="muted">Не удалось загрузить</p>`;
   }
@@ -1535,6 +1684,35 @@ function wireUi() {
   on("editFeelingsBtn", "click", (ev) => {
     ev.preventDefault();
     openFeelingsEditor();
+  });
+
+  on("feelingsAnalysisBtn", "click", (ev) => {
+    ev.preventDefault();
+    runFeelingsAnalysis();
+  });
+  on("feelingsAnalysisBtn2", "click", (ev) => {
+    ev.preventDefault();
+    runFeelingsAnalysis();
+  });
+  on("supportPracticeBtn", "click", (ev) => {
+    ev.preventDefault();
+    const id =
+      $("#supportPracticeBtn")?.dataset?.practiceId ||
+      state.lastAutoHelp?.practiceId;
+    if (id) openPractice(id, false);
+    else onRecommendPractice();
+  });
+  on("supportCoachBtn", "click", (ev) => {
+    ev.preventDefault();
+    go("coach");
+    if (state.lastAutoHelp?.text) {
+      // Seed chat with last auto-help so user can continue
+      const chat = $("#chat");
+      if (chat && !chat.dataset.seededHelp) {
+        appendBubble(state.lastAutoHelp.text, "bot");
+        chat.dataset.seededHelp = "1";
+      }
+    }
   });
 
   const form = $("#coachForm");

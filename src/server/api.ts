@@ -19,7 +19,15 @@ import {
   STRESS_SOURCES,
   DISCLAIMER,
 } from "../data/prompts";
-import { coachReply, weeklyInsight, isAiConfigured } from "../ai/client";
+import {
+  coachReply,
+  weeklyInsight,
+  isAiConfigured,
+  checkinInsight,
+  isBadResult,
+  fullFeelingsAnalysis,
+  autoSupportOnBadResult,
+} from "../ai/client";
 import {
   createPlanInvoice,
   invoicePayUrl,
@@ -273,7 +281,7 @@ export function createApiRouter(): Router {
     res.json({ ok: true, focusAreas: updated.focusAreas });
   });
 
-  router.post("/checkin", (req, res) => {
+  router.post("/checkin", async (req, res) => {
     const profile = (req as any).profile;
     const mood = asScore(req.body?.mood);
     const energy = asScore(req.body?.energy);
@@ -296,12 +304,46 @@ export function createApiRouter(): Router {
       note,
     });
 
-    res.json({
+    const payload: Record<string, unknown> = {
       ok: true,
       streak: updated.streak,
       checkin: updated.checkins[0],
       stats: store.weekStats(updated),
-    });
+      needsSupport: false,
+    };
+
+    const isPlus = store.isPremium(updated) && updated.plan === "plus";
+    if (isPlus) {
+      try {
+        const insight = await checkinInsight(updated);
+        if (insight) payload.insight = insight;
+      } catch (e) {
+        console.error("checkin insight", e);
+      }
+
+      if (isBadResult({ mood, energy, stress })) {
+        payload.needsSupport = true;
+        try {
+          const help = await autoSupportOnBadResult(updated, "checkin", {
+            mood,
+            energy,
+            stress,
+            note,
+          });
+          payload.autoHelp = help;
+          // Save into coach history without consuming daily quota (Plus perk)
+          store.pushCoachMessage(
+            updated.userId,
+            "assistant",
+            `🛟 Автопомощь после чек-ина\n\n${help.text}`
+          );
+        } catch (e) {
+          console.error("checkin autoHelp", e);
+        }
+      }
+    }
+
+    res.json(payload);
   });
 
   router.get("/practices", (req, res) => {
@@ -359,7 +401,7 @@ export function createApiRouter(): Router {
     res.json({ ok: true });
   });
 
-  router.post("/stress", (req, res) => {
+  router.post("/stress", async (req, res) => {
     const profile = (req as any).profile;
     const level = asScore(req.body?.level);
     if (!level) return res.status(400).json({ error: "level_required" });
@@ -372,7 +414,34 @@ export function createApiRouter(): Router {
         ? req.body.note.slice(0, 500)
         : undefined;
     store.addStress(profile.userId, level, source, note);
-    res.json({ ok: true, stats: store.weekStats(store.getUser(profile.userId)!) });
+    const fresh = store.getUser(profile.userId)!;
+    const payload: Record<string, unknown> = {
+      ok: true,
+      stats: store.weekStats(fresh),
+      needsSupport: false,
+    };
+
+    const isPlus = store.isPremium(fresh) && fresh.plan === "plus";
+    if (isPlus && isBadResult({ stress: level })) {
+      payload.needsSupport = true;
+      try {
+        const help = await autoSupportOnBadResult(fresh, "stress", {
+          stress: level,
+          note,
+          source,
+        });
+        payload.autoHelp = help;
+        store.pushCoachMessage(
+          fresh.userId,
+          "assistant",
+          `🛟 Автопомощь после стресса\n\n${help.text}`
+        );
+      } catch (e) {
+        console.error("stress autoHelp", e);
+      }
+    }
+
+    res.json(payload);
   });
 
   router.get("/journal/prompt", (_req, res) => {
@@ -493,6 +562,43 @@ export function createApiRouter(): Router {
     }
     const text = await weeklyInsight(profile);
     res.json({ text });
+  });
+
+  /** Plus: full feelings analysis across focus + checkins + stress + journal */
+  router.get("/analysis/feelings", async (req, res) => {
+    const profile = (req as any).profile;
+    if (!store.isPremium(profile) || profile.plan !== "plus") {
+      return res.status(403).json({
+        error: "plus_required",
+        message: "Полный анализ чувств доступен в тарифе Плюс",
+      });
+    }
+    try {
+      const analysis = await fullFeelingsAnalysis(profile);
+      res.json({ ok: true, ...analysis });
+    } catch (e) {
+      console.error("analysis/feelings", e);
+      res.status(500).json({ error: "analysis_failed" });
+    }
+  });
+
+  router.post("/analysis/feelings", async (req, res) => {
+    const profile = (req as any).profile;
+    if (!store.isPremium(profile) || profile.plan !== "plus") {
+      return res.status(403).json({
+        error: "plus_required",
+        message: "Полный анализ чувств доступен в тарифе Плюс",
+      });
+    }
+    try {
+      const analysis = await fullFeelingsAnalysis(
+        store.getUser(profile.userId)!
+      );
+      res.json({ ok: true, ...analysis });
+    } catch (e) {
+      console.error("analysis/feelings", e);
+      res.status(500).json({ error: "analysis_failed" });
+    }
   });
 
   router.post("/plan", async (req, res) => {

@@ -15,7 +15,15 @@ import {
   recommendPractice,
   PRACTICES,
 } from "../data/practices";
-import { coachReply, weeklyInsight, checkinInsight, isAiConfigured } from "../ai/client";
+import {
+  coachReply,
+  weeklyInsight,
+  checkinInsight,
+  isAiConfigured,
+  isBadResult,
+  autoSupportOnBadResult,
+  fullFeelingsAnalysis,
+} from "../ai/client";
 import {
   mainMenuKeyboard,
   moodKeyboard,
@@ -472,6 +480,35 @@ export function registerHandlers(bot: Bot) {
         return;
       }
 
+      if (data === "feelings_analysis") {
+        await ctx.answerCallbackQuery({ text: "Анализирую чувства…" });
+        const u = store.getUser(user.userId)!;
+        if (!store.isPremium(u) || u.plan !== "plus") {
+          await ctx.reply(
+            "Полный анализ чувств — в тарифе *Плюс* (349 ₽/мес).",
+            {
+              parse_mode: "Markdown",
+              reply_markup: plansKeyboard(),
+            }
+          );
+          return;
+        }
+        const analysis = await fullFeelingsAnalysis(u);
+        const risk =
+          analysis.summary.riskLevel === "hard"
+            ? "тяжело"
+            : analysis.summary.riskLevel === "watch"
+              ? "внимание"
+              : "опора";
+        await ctx.reply(
+          `🪞 *Полный анализ чувств*\n` +
+            `_уровень: ${risk}_\n\n` +
+            analysis.text.slice(0, 3500),
+          { parse_mode: "Markdown" }
+        );
+        return;
+      }
+
       await ctx.answerCallbackQuery();
     } catch (e) {
       console.error("callback error", e);
@@ -578,7 +615,7 @@ async function finishCheckin(
           ? "Энергии мало. Сегодня нормально делать меньше, чем «надо»."
           : "Есть ресурс. Можно закрепить короткой практикой или просто выдохнуть.";
 
-  // AI micro-insight for plus / when AI key present (care/plus or free lightly)
+  // AI micro-insight for plus / when AI key present
   try {
     if (store.isPremium(user) || isAiConfigured()) {
       const insight = await checkinInsight(user);
@@ -600,6 +637,36 @@ async function finishCheckin(
       reply_markup: afterCheckinKeyboard(),
     }
   );
+
+  // Plus: automatic AI help when results are hard (no coach quota)
+  const isPlus = store.isPremium(user) && user.plan === "plus";
+  if (isPlus && isBadResult({ mood: p.mood, energy: p.energy, stress: p.stress })) {
+    try {
+      const help = await autoSupportOnBadResult(user, "checkin", {
+        mood: p.mood,
+        energy: p.energy,
+        stress: p.stress,
+        note,
+      });
+      store.pushCoachMessage(
+        user.userId,
+        "assistant",
+        `🛟 Автопомощь после чек-ина\n\n${help.text}`
+      );
+      await ctx.reply(
+        `🛟 *Автопомощь (Плюс)*\n\n${help.text}` +
+          (help.practiceTitle
+            ? `\n\nПрактика: ${help.practiceTitle}`
+            : ""),
+        {
+          parse_mode: "Markdown",
+          reply_markup: afterCheckinKeyboard(),
+        }
+      );
+    } catch (e) {
+      console.error("bot autoHelp", e);
+    }
+  }
 }
 
 async function openPractices(ctx: Context) {
@@ -793,6 +860,8 @@ async function sendStats(ctx: Context) {
     {
       parse_mode: "Markdown",
       reply_markup: new InlineKeyboard()
+        .text("🪞 Полный анализ чувств", "feelings_analysis")
+        .row()
         .text("📬 Недельный AI-отчёт", "weekly_insight")
         .row()
         .text("« В меню", "nav:home"),
