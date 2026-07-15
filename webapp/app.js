@@ -612,14 +612,18 @@ function hidePayModal() {
 
 async function startCryptoPay(plan) {
   if (!plan) return;
+  if (state._paying) return; // prevent double invoices
   if (plan === "free") {
     try {
       await api("/plan", { method: "POST", body: { plan: "free" } });
       toast("Бесплатный тариф");
       await loadMe();
       renderPlans();
-    } catch {
-      toast("Ошибка");
+    } catch (e) {
+      if (e.data?.error === "already_premium") {
+        toast("У тебя уже есть подписка");
+        await loadMe();
+      } else toast("Ошибка");
     }
     return;
   }
@@ -629,13 +633,19 @@ async function startCryptoPay(plan) {
     return;
   }
 
+  state._paying = true;
   toast("Создаю счёт…");
   try {
     const res = await api("/plan", { method: "POST", body: { plan } });
+    if (res.payment === "already_active") {
+      toast("Подписка уже активна");
+      await loadMe();
+      renderPlans();
+      return;
+    }
     if (res.payment === "crypto" && res.payUrl) {
       showPayModal(plan, res.payUrl, res.invoiceId);
-      // slight delay so modal paints before leaving Mini App
-      setTimeout(() => openPayUrl(res.payUrl), 250);
+      setTimeout(() => openPayUrl(res.payUrl), 300);
       startPayPolling(res.invoiceId, true);
       return;
     }
@@ -646,11 +656,16 @@ async function startCryptoPay(plan) {
       toast("Крипто-оплата не настроена");
     } else if (e.data?.error === "invoice_failed") {
       toast("Crypto Bot не создал счёт");
+    } else if (e.data?.error === "already_premium") {
+      toast("Подписка уже активна");
+      await loadMe();
     } else if (e.status === 401) {
       toast("Открой app из @careofme_bot");
     } else {
       toast("Ошибка оплаты");
     }
+  } finally {
+    state._paying = false;
   }
 }
 
@@ -783,22 +798,8 @@ function renderPlans() {
   bindPayButtons($("#cryptoInfo") || document);
 }
 
-function bindPayButtons(root) {
-  if (!root) return;
-  root.querySelectorAll("[data-pay-plan]").forEach((btn) => {
-    btn.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      startCryptoPay(btn.getAttribute("data-pay-plan"));
-    };
-  });
-  root.querySelectorAll("[data-plan]").forEach((btn) => {
-    btn.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      startCryptoPay(btn.getAttribute("data-plan"));
-    };
-  });
+function bindPayButtons(_root) {
+  // no-op: clicks handled by document body delegation (avoids double invoices)
 }
 
 /* —— boot —— */
@@ -814,12 +815,20 @@ $("#payModalCheck")?.addEventListener("click", () =>
 );
 $("#payModalClose")?.addEventListener("click", hidePayModal);
 
-// Event delegation as backup for dynamically rebuilt pay buttons
+// Single delegated handler for pay buttons (no double-fire with onclick)
 document.body.addEventListener("click", (e) => {
   const pay = e.target.closest("[data-pay-plan]");
   if (pay && !pay.disabled) {
     e.preventDefault();
+    e.stopPropagation();
     startCryptoPay(pay.getAttribute("data-pay-plan"));
+    return;
+  }
+  const free = e.target.closest("[data-plan]");
+  if (free && free.getAttribute("data-plan") === "free") {
+    e.preventDefault();
+    e.stopPropagation();
+    startCryptoPay("free");
   }
 });
 

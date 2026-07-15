@@ -109,9 +109,12 @@ interface StoreData {
 
 function defaultDataPath(): string {
   if (process.env.DATA_PATH) return process.env.DATA_PATH;
+  // Prefer persistent volume on Railway (/data), then /tmp
+  if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID) {
+    return "/data/careofme-store.json";
+  }
   if (
     process.env.RENDER ||
-    process.env.RAILWAY_ENVIRONMENT ||
     process.env.FLY_APP_NAME ||
     process.env.NODE_ENV === "production"
   ) {

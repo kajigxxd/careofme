@@ -6,58 +6,115 @@ import {
   type PaidPlan,
 } from "./plans";
 
-export async function checkPendingPayments(userId: number): Promise<boolean> {
-  const user = store.getUser(userId);
-  if (!user?.pendingInvoices?.length || !isCryptoPayConfigured()) {
-    const u = store.getUser(userId);
-    return u ? store.isPremium(u) : false;
-  }
-
-  for (const pend of [...user.pendingInvoices]) {
-    try {
-      if (store.hasPaidInvoice(userId, pend.invoiceId)) {
-        store.activatePlan(userId, pend.plan, PLAN_DURATION_DAYS, {
-          invoiceId: pend.invoiceId,
-        });
-        return true;
-      }
-      const inv = await getInvoice(pend.invoiceId);
-      if (inv?.status === "paid") {
-        store.activatePlan(userId, pend.plan, PLAN_DURATION_DAYS, {
-          invoiceId: pend.invoiceId,
-          amount: inv.amount,
-          asset: inv.fiat || (inv as { paid_asset?: string }).paid_asset,
-        });
-        return true;
-      }
-    } catch (e) {
-      console.warn("check invoice", pend.invoiceId, e);
-    }
-  }
-  return store.isPremium(store.getUser(userId)!);
-}
-
+/** Activate plan from a paid Crypto Pay invoice (idempotent). */
 export function applyPaidInvoice(opts: {
   invoiceId: number;
   payload?: string;
   amount?: string;
   asset?: string;
-}): { ok: boolean; userId?: number; plan?: PaidPlan } {
+}): { ok: boolean; userId?: number; plan?: PaidPlan; already?: boolean } {
   const parsed = parseInvoicePayload(opts.payload);
-  if (!parsed) return { ok: false };
-  if (store.hasPaidInvoice(parsed.userId, opts.invoiceId)) {
-    return { ok: true, userId: parsed.userId, plan: parsed.plan };
+  if (!parsed) {
+    console.warn("applyPaidInvoice: bad payload", opts.payload);
+    return { ok: false };
   }
+
   if (!store.getUser(parsed.userId)) {
     store.getOrCreateUser({
       userId: parsed.userId,
       chatId: parsed.userId,
     });
   }
+
+  if (store.hasPaidInvoice(parsed.userId, opts.invoiceId)) {
+    // Ensure plan still active even if already recorded
+    const u = store.getUser(parsed.userId)!;
+    if (!store.isPremium(u) || u.plan !== parsed.plan) {
+      store.activatePlan(parsed.userId, parsed.plan, PLAN_DURATION_DAYS, {
+        invoiceId: opts.invoiceId,
+        amount: opts.amount,
+        asset: opts.asset,
+      });
+    }
+    return {
+      ok: true,
+      userId: parsed.userId,
+      plan: parsed.plan,
+      already: true,
+    };
+  }
+
   store.activatePlan(parsed.userId, parsed.plan, PLAN_DURATION_DAYS, {
     invoiceId: opts.invoiceId,
     amount: opts.amount,
     asset: opts.asset,
   });
   return { ok: true, userId: parsed.userId, plan: parsed.plan };
+}
+
+/** Check specific invoice or all pending for user. */
+export async function checkPendingPayments(
+  userId: number,
+  invoiceId?: number
+): Promise<boolean> {
+  if (!isCryptoPayConfigured()) {
+    const u = store.getUser(userId);
+    return u ? store.isPremium(u) : false;
+  }
+
+  const ids: number[] = [];
+  if (invoiceId && Number.isFinite(invoiceId) && invoiceId > 0) {
+    ids.push(invoiceId);
+  }
+  const user = store.getUser(userId);
+  for (const p of user?.pendingInvoices || []) {
+    if (!ids.includes(p.invoiceId)) ids.push(p.invoiceId);
+  }
+
+  for (const id of ids) {
+    try {
+      if (store.hasPaidInvoice(userId, id)) {
+        const pend = user?.pendingInvoices?.find((x) => x.invoiceId === id);
+        const plan = pend?.plan;
+        if (plan) {
+          store.activatePlan(userId, plan, PLAN_DURATION_DAYS, {
+            invoiceId: id,
+          });
+        }
+        return store.isPremium(store.getUser(userId)!);
+      }
+
+      const inv = await getInvoice(id);
+      if (!inv) continue;
+      if (inv.status !== "paid") continue;
+
+      const result = applyPaidInvoice({
+        invoiceId: id,
+        payload: inv.payload,
+        amount: inv.paid_amount || inv.amount,
+        asset: inv.paid_asset || inv.fiat,
+      });
+      // If payload missing user, try pending plan
+      if (!result.ok) {
+        const pend = store
+          .getUser(userId)
+          ?.pendingInvoices?.find((x) => x.invoiceId === id);
+        if (pend) {
+          store.activatePlan(userId, pend.plan, PLAN_DURATION_DAYS, {
+            invoiceId: id,
+            amount: inv.amount,
+            asset: inv.paid_asset || inv.fiat,
+          });
+          return true;
+        }
+      } else if (result.userId === userId || !result.userId) {
+        return store.isPremium(store.getUser(userId)!);
+      }
+    } catch (e) {
+      console.warn("check invoice", id, e);
+    }
+  }
+
+  const u = store.getUser(userId);
+  return u ? store.isPremium(u) : false;
 }

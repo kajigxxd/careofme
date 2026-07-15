@@ -69,8 +69,8 @@ async function configureProfile(webappUrl?: string) {
     console.warn("Menu button setup failed:", e);
   }
 
+  // Skip setMyName — Telegram rate-limits it heavily on redeploy
   try {
-    await bot.api.setMyName("careofme");
     await bot.api.setMyShortDescription(
       "Тихий уголок в кармане. Пара минут — и можно выдохнуть."
     );
@@ -81,7 +81,7 @@ async function configureProfile(webappUrl?: string) {
         "Не замена терапии. Если совсем тяжело: 8-800-2000-122 или 112."
     );
   } catch (e) {
-    console.warn("Profile setup:", e);
+    console.warn("Profile description setup:", e);
   }
 }
 
@@ -110,21 +110,19 @@ function mountCryptoPayWebhook(
           const result = applyPaidInvoice({
             invoiceId: inv.invoice_id,
             payload: inv.payload,
-            amount: inv.amount,
-            asset:
-              (inv as { paid_asset?: string }).paid_asset || inv.fiat,
+            amount: inv.paid_amount || inv.amount,
+            asset: inv.paid_asset || inv.fiat,
           });
           console.log("CryptoPay paid", inv.invoice_id, result);
 
-          if (result.ok && result.userId) {
+          if (result.ok && result.userId && !result.already) {
             try {
               const u = store.getUser(result.userId);
               await bot.api.sendMessage(
                 u?.chatId || result.userId,
-                `✅ Оплата получена!\n\nТариф *${
+                `✅ Оплата получена!\n\nТариф «${
                   result.plan === "plus" ? "Плюс" : "Забота"
-                }* активен на 30 дней.\nОткрой /start или приложение careofme.`,
-                { parse_mode: "Markdown" }
+                }» активен на 30 дней.\nОткрой /start или приложение careofme.`
               );
             } catch (e) {
               console.warn("notify user pay", e);

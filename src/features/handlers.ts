@@ -33,6 +33,7 @@ import {
 } from "../bot/keyboards";
 import {
   createPlanInvoice,
+  invoicePayUrl,
   isCryptoPayConfigured,
 } from "../payments/cryptopay";
 import { PLAN_DURATION_DAYS, type PaidPlan } from "../payments/plans";
@@ -850,18 +851,18 @@ async function offerPlanPayment(
     const inv = await createPlanInvoice({
       userId,
       plan,
-      botUsername: "careofme_bot",
+      botUsername: process.env.BOT_USERNAME || "careofme_bot",
     });
     store.trackInvoice(userId, inv.invoice_id, plan);
-    const url =
-      inv.bot_invoice_url || inv.pay_url || inv.mini_app_invoice_url || "";
+    const url = invoicePayUrl(inv);
     await ctx.reply(
       `${info.title} — ${info.price} / 30 дней\n\n` +
         info.perks.map((p) => `• ${p}`).join("\n") +
         `\n\n💎 Оплата в Crypto Bot (USDT / TON / BTC / ETH…).\n` +
         `1) Нажми «Оплатить криптой»\n` +
         `2) Подтверди платёж\n` +
-        `3) Вернись и нажми «Я оплатил(а)»`,
+        `3) Вернись и нажми «Я оплатил(а)»\n\n` +
+        `Счёт #${inv.invoice_id}`,
       {
         reply_markup: url
           ? payUrlKeyboard(url, plan)

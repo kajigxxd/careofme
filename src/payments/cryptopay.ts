@@ -10,7 +10,6 @@ import {
   buildInvoicePayload,
   type PaidPlan,
 } from "./plans";
-import { resolveWebAppUrl } from "../config";
 
 const MAINNET = "https://pay.crypt.bot/api";
 const TESTNET = "https://testnet-pay.crypt.bot/api";
@@ -27,6 +26,8 @@ export interface CryptoInvoice {
   payload?: string;
   description?: string;
   fiat?: string;
+  paid_asset?: string;
+  paid_amount?: string;
 }
 
 function baseUrl(): string {
@@ -59,13 +60,27 @@ async function apiCall<T>(
     error?: string;
   };
   if (!data.ok || data.result === undefined) {
-    throw new Error(data.error || `CryptoPay ${method} failed`);
+    throw new Error(
+      typeof data.error === "string"
+        ? data.error
+        : JSON.stringify(data.error || `CryptoPay ${method} failed`)
+    );
   }
   return data.result;
 }
 
 export async function cryptoPayGetMe(): Promise<unknown> {
   return apiCall("getMe");
+}
+
+export function invoicePayUrl(inv: CryptoInvoice): string {
+  return (
+    inv.bot_invoice_url ||
+    inv.pay_url ||
+    inv.mini_app_invoice_url ||
+    inv.web_app_invoice_url ||
+    (inv.hash ? `https://t.me/CryptoBot?start=${inv.hash}` : "")
+  );
 }
 
 export async function createPlanInvoice(opts: {
@@ -75,17 +90,16 @@ export async function createPlanInvoice(opts: {
 }): Promise<CryptoInvoice> {
   const amount = PLAN_PRICES_RUB[opts.plan];
   const title = PLAN_TITLES[opts.plan];
-  const webapp = resolveWebAppUrl() || "https://t.me";
-  const botUser = opts.botUsername || process.env.BOT_USERNAME || "careofme_bot";
+  const botUser =
+    opts.botUsername || process.env.BOT_USERNAME || "careofme_bot";
 
   const invoice = await apiCall<CryptoInvoice>("createInvoice", {
     currency_type: "fiat",
     fiat: "RUB",
     amount: String(amount),
     accepted_assets: CRYPTO_ACCEPTED_ASSETS,
-    swap_to: "USDT",
-    description: `careofme · тариф «${title}» · ${amount} ₽ / 30 дней`,
-    hidden_message: `Оплата прошла! Тариф «${title}» активирован в @${botUser}. Открой /start.`,
+    description: `careofme · «${title}» · ${amount} RUB / 30 days`,
+    hidden_message: `Оплата прошла! Тариф «${title}» активирован в @${botUser}.`,
     payload: buildInvoicePayload(opts.userId, opts.plan),
     paid_btn_name: "openBot",
     paid_btn_url: `https://t.me/${botUser}`,
@@ -94,28 +108,28 @@ export async function createPlanInvoice(opts: {
     expires_in: 3600,
   });
 
-  // Prefer mini app URL when inside Telegram
-  if (!invoice.bot_invoice_url && invoice.pay_url) {
-    invoice.bot_invoice_url = invoice.pay_url;
-  }
-  if (!invoice.mini_app_invoice_url) {
-    invoice.mini_app_invoice_url = invoice.bot_invoice_url;
-  }
-
-  void webapp; // reserved for paid_btn if needed
   return invoice;
 }
 
-export async function getInvoice(invoiceId: number): Promise<CryptoInvoice | null> {
-  const list = await apiCall<CryptoInvoice[]>("getInvoices", {
-    invoice_ids: String(invoiceId),
-  });
-  return list[0] || null;
+export async function getInvoice(
+  invoiceId: number
+): Promise<CryptoInvoice | null> {
+  try {
+    const list = await apiCall<CryptoInvoice[]>("getInvoices", {
+      invoice_ids: String(invoiceId),
+      count: 1,
+    });
+    if (Array.isArray(list) && list.length) return list[0]!;
+    return null;
+  } catch (e) {
+    console.warn("getInvoice failed", invoiceId, e);
+    return null;
+  }
 }
 
 /**
  * Verify Crypto Pay webhook signature.
- * secret = SHA256(app_token), hmac = HMAC-SHA256(secret, rawBody)
+ * secret = SHA256(app_token), hmac = HMAC-SHA256(secret, rawBody) hex
  */
 export function verifyCryptoPaySignature(
   rawBody: string,
@@ -128,14 +142,10 @@ export function verifyCryptoPaySignature(
     .createHmac("sha256", secret)
     .update(rawBody)
     .digest("hex");
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(hmac, "utf8"),
-      Buffer.from(signatureHeader, "utf8")
-    );
-  } catch {
-    return hmac === signatureHeader;
-  }
+  const a = Buffer.from(hmac, "utf8");
+  const b = Buffer.from(signatureHeader.trim(), "utf8");
+  if (a.length !== b.length) return hmac === signatureHeader.trim();
+  return crypto.timingSafeEqual(a, b);
 }
 
 export type CryptoPayUpdate = {

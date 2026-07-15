@@ -21,10 +21,10 @@ import {
 import { coachReply, weeklyInsight, isAiConfigured } from "../ai/client";
 import {
   createPlanInvoice,
-  getInvoice,
+  invoicePayUrl,
   isCryptoPayConfigured,
 } from "../payments/cryptopay";
-import { PLAN_DURATION_DAYS, type PaidPlan } from "../payments/plans";
+import type { PaidPlan } from "../payments/plans";
 import { checkPendingPayments } from "../payments/activate";
 
 function getToken() {
@@ -290,83 +290,94 @@ export function createApiRouter(): Router {
     if (!["free", "care", "plus"].includes(plan)) {
       return res.status(400).json({ error: "invalid_plan" });
     }
+
+    // Already on this paid plan — don't create another invoice
+    if (
+      (plan === "care" || plan === "plus") &&
+      store.isPremium(profile) &&
+      profile.plan === plan
+    ) {
+      return res.json({
+        ok: true,
+        payment: "already_active",
+        plan: profile.plan,
+        premium: true,
+        premiumUntil: profile.premiumUntil,
+      });
+    }
+
     if (plan === "free") {
+      // Do not silently wipe paid subscription via free switch from Mini App
+      // unless user is not premium
+      if (store.isPremium(profile)) {
+        return res.status(400).json({
+          error: "already_premium",
+          message: "У тебя уже есть активная подписка",
+          plan: profile.plan,
+          premiumUntil: profile.premiumUntil,
+        });
+      }
       store.updateUser(profile.userId, {
         plan: "free",
         premiumUntil: undefined,
       });
-      const updated = store.getUser(profile.userId)!;
       return res.json({
         ok: true,
-        plan: updated.plan,
+        plan: "free",
         premium: false,
         premiumUntil: undefined,
       });
     }
 
-    // Paid plans: create Crypto Pay invoice (preferred)
-    if (isCryptoPayConfigured()) {
-      try {
-        const inv = await createPlanInvoice({
-          userId: profile.userId,
-          plan: plan as PaidPlan,
-          botUsername: "careofme_bot",
-        });
-        store.trackInvoice(profile.userId, inv.invoice_id, plan as PaidPlan);
-        // Prefer classic bot deep-link — opens CryptoBot reliably inside Telegram
-        const payUrl =
-          inv.bot_invoice_url ||
-          inv.pay_url ||
-          inv.mini_app_invoice_url ||
-          inv.web_app_invoice_url;
-        return res.json({
-          ok: true,
-          payment: "crypto",
-          invoiceId: inv.invoice_id,
-          payUrl,
-          miniAppPayUrl: inv.mini_app_invoice_url,
-          amountRub: PLANS[plan].priceRub,
-          plan,
-        });
-      } catch (e) {
-        console.error(e);
-        return res.status(502).json({ error: "invoice_failed" });
-      }
+    if (!isCryptoPayConfigured()) {
+      return res.status(503).json({
+        error: "payments_not_configured",
+        message: "CRYPTO_PAY_TOKEN не задан",
+      });
     }
 
-    return res.status(503).json({
-      error: "payments_not_configured",
-      message: "Задайте CRYPTO_PAY_TOKEN (@CryptoBot → Crypto Pay)",
-    });
+    try {
+      const inv = await createPlanInvoice({
+        userId: profile.userId,
+        plan: plan as PaidPlan,
+        botUsername: process.env.BOT_USERNAME || "careofme_bot",
+      });
+      store.trackInvoice(profile.userId, inv.invoice_id, plan as PaidPlan);
+      const payUrl = invoicePayUrl(inv);
+      if (!payUrl) {
+        return res.status(502).json({ error: "invoice_no_url" });
+      }
+      return res.json({
+        ok: true,
+        payment: "crypto",
+        invoiceId: inv.invoice_id,
+        payUrl,
+        miniAppPayUrl: inv.mini_app_invoice_url,
+        amountRub: PLANS[plan].priceRub,
+        plan,
+      });
+    } catch (e) {
+      console.error("createPlanInvoice", e);
+      return res.status(502).json({
+        error: "invoice_failed",
+        message: e instanceof Error ? e.message : "invoice_failed",
+      });
+    }
   });
 
   router.post("/plan/check", async (req, res) => {
     const profile = (req as any).profile;
-    const invoiceId = Number(req.body?.invoiceId);
-    if (invoiceId) {
-      try {
-        const inv = await getInvoice(invoiceId);
-        if (inv?.status === "paid") {
-          const { parseInvoicePayload } = await import("../payments/plans");
-          const parsed = parseInvoicePayload(inv.payload);
-          if (parsed && parsed.userId === profile.userId) {
-            store.activatePlan(profile.userId, parsed.plan, PLAN_DURATION_DAYS, {
-              invoiceId,
-              amount: inv.amount,
-            });
-          }
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-    } else {
-      await checkPendingPayments(profile.userId);
+    const invoiceId = Number(req.body?.invoiceId) || undefined;
+    try {
+      await checkPendingPayments(profile.userId, invoiceId);
+    } catch (e) {
+      console.warn("plan/check", e);
     }
     const updated = store.getUser(profile.userId)!;
     res.json({
       ok: true,
       premium: store.isPremium(updated),
-      plan: updated.plan,
+      plan: updated.plan || "free",
       premiumUntil: updated.premiumUntil,
     });
   });
