@@ -1,0 +1,22 @@
+# Deploy: https://render.com → New → Blueprint → this repo
+services:
+  - type: web
+    name: berezhno
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BOT_TOKEN
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
+      - key: XAI_MODEL
+        value: grok-4.5
+      - key: DATA_PATH
+        value: /tmp/berezhno-store.json
+      # WEBAPP_URL is optional — RENDER_EXTERNAL_URL is used automatically

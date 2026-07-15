@@ -1,0 +1,43 @@
+{
+  "name": "berezhno",
+  "version": "1.1.0",
+  "description": "Бережно — Telegram Mini App + бот для ментального здоровья",
+  "main": "dist/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "tunnel": "npx --yes localtunnel --port 8787",
+    "postinstall": "node -e \"try{require('fs').accessSync('dist')}catch(e){}\""
+  },
+  "keywords": [
+    "telegram",
+    "mini-app",
+    "mental-health",
+    "bot",
+    "cbt",
+    "wellbeing",
+    "russian"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1",
+    "grammy": "^1.35.0",
+    "openai": "^4.86.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
