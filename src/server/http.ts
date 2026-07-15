@@ -63,10 +63,25 @@ export function createHttpServer(): Express {
     console.log("📂 Mini App static:", webRoot);
   }
 
+  // No long browser/WebView cache — Telegram Desktop on macOS keeps stale app.js for hours
   app.use(
     express.static(webRoot, {
       extensions: ["html"],
-      maxAge: process.env.NODE_ENV === "production" ? "1h" : 0,
+      maxAge: 0,
+      etag: true,
+      lastModified: true,
+      setHeaders(res, filePath) {
+        if (/\.(js|css|html)$/i.test(filePath)) {
+          res.setHeader(
+            "Cache-Control",
+            "no-store, no-cache, must-revalidate, proxy-revalidate"
+          );
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else if (/\.(png|jpg|jpeg|webp|svg|ico)$/i.test(filePath)) {
+          res.setHeader("Cache-Control", "public, max-age=300");
+        }
+      },
     })
   );
 
@@ -76,7 +91,8 @@ export function createHttpServer(): Express {
       req.path.startsWith("/api") ||
       req.path === "/health" ||
       req.path === "/ping" ||
-      req.path.startsWith("/telegram/")
+      req.path.startsWith("/telegram/") ||
+      req.path.startsWith("/payments/")
     ) {
       return next();
     }
@@ -87,6 +103,12 @@ export function createHttpServer(): Express {
         .type("text")
         .send("Mini App files missing. Ensure webapp/ is deployed.");
     }
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate"
+    );
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.sendFile(index);
   });
 

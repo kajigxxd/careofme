@@ -8,8 +8,12 @@
     />
     <meta name="color-scheme" content="light dark" />
     <title>careofme</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="./styles.css" />
+    <!-- v= busts Telegram Desktop / macOS WebView cache -->
+    <link rel="stylesheet" href="./styles.css?v=20260715c" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -320,6 +324,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js" type="module"></script>
+    <script src="./app.js?v=20260715c" type="module"></script>
   </body>
 </html>

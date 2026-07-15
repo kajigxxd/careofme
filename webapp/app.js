@@ -890,45 +890,46 @@ function renderPlans() {
   const info = $("#cryptoInfo");
   if (info) info.style.display = premium ? "none" : "block";
 
+  // Always rebuild plan cards from live flags — never show legacy "demo" labels
   $("#plans").innerHTML =
     `<p class="muted" style="margin-bottom:10px">${
       premium
         ? "Твоя подписка активна. Ниже — что входит в тарифы."
         : cryptoOk
-          ? "Оплата только криптой через Crypto Bot. Кнопки сверху 👆"
+          ? "Оплата в USDT через Crypto Bot (курс 81 ₽). На Mac после счёта нажми «Открыть Crypto Bot»."
           : "⚠️ Оплата на сервере недоступна"
     }</p>` +
     Object.values(plans)
       .map((p) => {
         const active = premium
           ? current === p.id
-          : p.id === "free" && current === "free";
+          : p.id === "free" && (!premium || current === "free");
         let btn = "";
         if (p.id === "free") {
-          btn = premium
-            ? ""
-            : `<button class="btn ghost block" type="button" data-plan="free">${
-                active ? "Текущий тариф" : "Остаться на free"
-              }</button>`;
+          if (!premium) {
+            btn = `<button class="btn ghost block" type="button" data-plan="free">${
+              active ? "Текущий тариф" : "Остаться на free"
+            }</button>`;
+          }
         } else if (premium && current === p.id) {
           btn = `<button class="btn ghost block" type="button" disabled>Активен</button>`;
-        } else if (!premium && cryptoOk) {
-          btn = `<button class="btn primary block" type="button" data-pay-plan="${p.id}">💎 Оплатить криптой · ${p.price}</button>`;
-        } else if (!premium) {
-          btn = `<button class="btn ghost block" type="button" disabled>Недоступно</button>`;
+        } else if (premium && current !== p.id) {
+          btn = `<button class="btn primary block" type="button" data-pay-plan="${p.id}">💎 Перейти · ${p.price}</button>`;
+        } else if (cryptoOk) {
+          const usdt = p.id === "plus" ? "4.31 USDT" : "2.46 USDT";
+          btn = `<button class="btn primary block" type="button" data-pay-plan="${p.id}">💎 Оплатить · ${p.price} · ${usdt}</button>`;
+        } else {
+          btn = `<button class="btn ghost block" type="button" disabled>Оплата недоступна</button>`;
         }
         return `
       <div class="plan">
-        <h3>${p.title}${active && p.id !== "free" ? " · сейчас" : ""}</h3>
+        <h3>${p.title}${active && p.id !== "free" && premium ? " · сейчас" : ""}</h3>
         <div class="price">${p.price}</div>
-        <ul>${p.perks.map((x) => `<li>${x}</li>`).join("")}</ul>
+        <ul>${(p.perks || []).map((x) => `<li>${x}</li>`).join("")}</ul>
         ${btn}
       </div>`;
       })
       .join("");
-
-  bindPayButtons($("#plans"));
-  bindPayButtons($("#cryptoInfo") || document);
 }
 
 function bindPayButtons(_root) {
