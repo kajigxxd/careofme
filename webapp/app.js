@@ -222,6 +222,11 @@ $("#onboardingDone").onclick = async () => {
   }
 };
 
+document.getElementById("editFeelingsBtn")?.addEventListener("click", () => {
+  state.focusDraft = [...(state.me?.focusAreas || ["general"])];
+  go("onboarding");
+});
+
 /* —— Check-in —— */
 function resetCheckinUI() {
   state.checkin = { step: 0, mood: null, energy: null, stress: null, sleep: null, note: "" };
