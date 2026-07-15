@@ -4,7 +4,14 @@ import {
   buildCoachSystemPrompt,
   FOCUS_LABELS,
 } from "../data/prompts";
-import { recommendPractice, getPractice } from "../data/practices";
+import {
+  recommendPractice,
+  recommendPractices,
+  toPracticePicks,
+  getPractice,
+  type PracticePick,
+  type Practice,
+} from "../data/practices";
 import {
   looksLikeCrisis,
   crisisAutoHelp,
@@ -812,6 +819,8 @@ export type AutoHelpResult = {
   text: string;
   practiceId?: string;
   practiceTitle?: string;
+  /** Several practice options for low scores (UI shows chips) */
+  practices?: PracticePick[];
   usedFallback: boolean;
   trigger: "checkin" | "stress";
 };
@@ -835,12 +844,18 @@ export async function autoSupportOnBadResult(
       ? opts.freeOnly
       : user.plan !== "care" && user.plan !== "plus";
 
-  const practice = recommendPractice(
-    user.focusAreas,
-    scores.mood ?? user.checkins[0]?.mood,
-    scores.stress ?? user.checkins[0]?.stress,
-    useFreeOnly
-  );
+  const scoreNums = {
+    mood: scores.mood ?? undefined,
+    energy: scores.energy ?? undefined,
+    stress: scores.stress ?? undefined,
+  };
+
+  const practiceList = recommendPractices(4, user.focusAreas, {
+    ...scoreNums,
+    freeOnly: useFreeOnly,
+  });
+  const picks = toPracticePicks(practiceList, scoreNums);
+  const practice = practiceList[0]!;
 
   const scoreLine =
     trigger === "stress"
@@ -855,10 +870,25 @@ export async function autoSupportOnBadResult(
   if (scores.energy != null && scores.energy <= 2) drivers.push("мало энергии");
   if (scores.stress != null && scores.stress >= 4) drivers.push("высокий стресс");
 
+  const practiceLines = picks
+    .map(
+      (p) =>
+        `• ${p.emoji} ${p.title} (~${p.durationMin} мин) — ${p.reason}`
+    )
+    .join("\n");
+
   const client = getClient();
   if (!client) {
     return {
-      ...fallbackBadResultHelp(user, trigger, scores, practice, scoreLine, drivers),
+      ...fallbackBadResultHelp(
+        user,
+        trigger,
+        scores,
+        practice,
+        picks,
+        scoreLine,
+        drivers
+      ),
       usedFallback: true,
       trigger,
     };
@@ -868,7 +898,7 @@ export async function autoSupportOnBadResult(
     const resp = await client.chat.completions.create({
       model: modelName(),
       temperature: 0.9,
-      max_tokens: 750,
+      max_tokens: 800,
       messages: [
         {
           role: "system",
@@ -878,12 +908,10 @@ export async function autoSupportOnBadResult(
             "Структура (гибко, живым текстом):\n" +
             "1) Коротко отрази ЕГО ситуацию (цифры + фокус + заметка, если есть)\n" +
             "2) Сними стыд: это сигнал, не «провал»\n" +
-            "3) Предложи 2–3 РАЗНЫХ персональных варианта выхода из состояния — на выбор, без «ты должен». " +
-            "Варианты должны отличаться (тело / мысль / действие-граница / контакт / практика) " +
-            "и подходить именно к его драйверам (настроение/энергия/стресс) и фокусу чувств.\n" +
-            "4) Мягко упомяни одну практику из приложения, если уместна.\n" +
-            "140–260 слов. Без диагнозов, без давления. " +
-            "Если намёк на вред себе — 8-800-2000-122 и 112.",
+            "3) Предложи 2–3 РАЗНЫХ персональных варианта выхода — на выбор, без «ты должен».\n" +
+            "4) Упомяни НЕСКОЛЬКО практик из списка (разные виды: дыхание, тело, CBT, заземление) — " +
+            "не только заземление. Пусть человек выберет.\n" +
+            "160–280 слов. Без диагнозов. Кризис → 8-800-2000-122 / 112.",
         },
         {
           role: "user",
@@ -892,25 +920,41 @@ export async function autoSupportOnBadResult(
             `Триггер: ${trigger}\n${scoreLine}\n` +
             `Драйверы: ${drivers.join(", ") || "общее снижение"}\n` +
             `Тариф: ${user.plan || "free"} (практики: ${useFreeOnly ? "только бесплатные" : "полная библиотека"})\n` +
-            `Практика-кандидат: ${practice.emoji} ${practice.title} (~${practice.durationMin} мин, id ${practice.id})`,
+            `Доступные практики (предложи 2–4 из них):\n${practiceLines}`,
         },
       ],
     });
     const text =
       resp.choices[0]?.message?.content?.trim() ||
-      fallbackBadResultHelp(user, trigger, scores, practice, scoreLine, drivers)
-        .text;
+      fallbackBadResultHelp(
+        user,
+        trigger,
+        scores,
+        practice,
+        picks,
+        scoreLine,
+        drivers
+      ).text;
     return {
       text: text.replace(/\*\*/g, "*"),
       practiceId: practice.id,
       practiceTitle: `${practice.emoji} ${practice.title}`,
+      practices: picks,
       usedFallback: false,
       trigger,
     };
   } catch (e) {
     console.error("autoSupportOnBadResult", e);
     return {
-      ...fallbackBadResultHelp(user, trigger, scores, practice, scoreLine, drivers),
+      ...fallbackBadResultHelp(
+        user,
+        trigger,
+        scores,
+        practice,
+        picks,
+        scoreLine,
+        drivers
+      ),
       usedFallback: true,
       trigger,
     };
@@ -927,7 +971,8 @@ function fallbackBadResultHelp(
     note?: string;
     source?: string;
   },
-  practice: { id: string; emoji: string; title: string; durationMin: number },
+  practice: Practice,
+  picks: PracticePick[],
   scoreLine: string,
   drivers: string[]
 ): AutoHelpResult {
@@ -942,63 +987,57 @@ function fallbackBadResultHelp(
 
   const options: string[] = [];
 
-  // Option A — body
   if (scores.stress != null && scores.stress >= 4) {
     options.push(
-      "Тело: стопы на полу, плечи вниз, 5 выдохов длиннее вдоха — сбросить «режим тревоги», не «решить жизнь»."
+      "Тело: стопы на полу, плечи вниз, 5 выдохов длиннее вдоха — сбросить «режим тревоги»."
     );
   } else if (scores.energy != null && scores.energy <= 2) {
     options.push(
-      "Тело: вода + 3 минуты без экрана или короткая прогутка до окна/кухни — топливо важнее героизма."
+      "Тело: вода + 3 минуты без экрана — топливо важнее героизма."
     );
   } else {
     options.push(
-      "Тело: рука на груди, 4 медленных выдоха — дать нервной системе сигнал «сейчас можно чуть отпустить»."
+      "Тело: рука на груди, 4 медленных выдоха — сигнал «можно чуть отпустить»."
     );
   }
 
-  // Option B — mind / meaning
   if (scores.mood != null && scores.mood <= 2) {
     options.push(
-      "Мысль: назови чувство одной фразой без «я должен» (например: «мне тяжело и устал»). " +
-        "Отделение факта от самокритики уже чуть разгружает."
-    );
-  } else if (focus.includes("Тревог") || user.focusAreas.includes("anxiety")) {
-    options.push(
-      "Мысль: «тревога = сигнал, не приговор». Запиши одну мысль, которая крутится, и пометь: мысль / факт."
+      "Мысль: «мне сейчас тяжело» вместо «я плохой» — одна фраза, без разбора всей жизни."
     );
   } else {
     options.push(
-      "Мысль: что одно можно отложить или упростить на 10% сегодня — без отчёта перед собой."
+      "Мысль: что одно можно упростить на 10% сегодня — без отчёта перед собой."
     );
   }
 
-  // Option C — action / practice / contact
-  if (user.focusAreas.includes("loneliness") || user.focusAreas.includes("relationships")) {
-    options.push(
-      "Контакт: одно короткое сообщение живому человеку («мне сегодня тяжело, просто пишу») — или практика в приложении, если хочется тишины."
-    );
-  } else {
-    options.push(
-      `Практика: «${practice.emoji} ${practice.title}» (~${practice.durationMin} мин) — только если есть силы; иначе достаточно паузы без задачи.`
-    );
-  }
+  const practiceBlock =
+    picks.length > 0
+      ? picks
+          .map(
+            (p, i) =>
+              `${i + 1}) ${p.emoji} *${p.title}* (~${p.durationMin} мин) — ${p.reason}`
+          )
+          .join("\n")
+      : `1) ${practice.emoji} *${practice.title}* (~${practice.durationMin} мин)`;
 
   const text =
     `${name}сейчас показатели низкие (${scoreLine}` +
     (drivers.length ? `; особенно: ${drivers.join(", ")}` : "") +
     `).${noteBit}\n\n` +
     (focus
-      ? `С учётом твоего фокуса (${focus}) это выглядит не как «слабость», а как сигнал перегруза.\n\n`
+      ? `С учётом твоего фокуса (${focus}) это сигнал перегруза, не «слабость».\n\n`
       : `Это сигнал системы, не приговор.\n\n`) +
-    `Вот несколько индивидуальных выходов — выбери один, который ближе, без обязательства делать всё:\n\n` +
-    options.map((o, i) => `${i + 1}) ${o}`).join("\n\n") +
-    `\n\nЕсли совсем невыносимо или есть мысли о вреде себе — 8-800-2000-122 или 112. Ты не обязан(а) справляться в одиночку.`;
+    `Мягкие опоры (выбери одно):\n` +
+    options.map((o, i) => `• ${o}`).join("\n") +
+    `\n\nПрактики под твоё состояние — не только заземление:\n${practiceBlock}\n\n` +
+    `Можно открыть любую ниже. Если совсем невыносимо — 8-800-2000-122 или 112.`;
 
   return {
     text,
     practiceId: practice.id,
     practiceTitle: `${practice.emoji} ${practice.title}`,
+    practices: picks,
     usedFallback: true,
     trigger,
   };

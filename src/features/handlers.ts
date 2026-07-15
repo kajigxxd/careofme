@@ -746,14 +746,22 @@ async function finishCheckin(
         "assistant",
         `🛟 Поддержка при низких показателях\n\n${help.text}`
       );
-      await ctx.reply(
-        `🛟 *Поддержка*\n\n${help.text}` +
-          (help.practiceTitle ? `\n\nПрактика: ${help.practiceTitle}` : ""),
-        {
-          parse_mode: "Markdown",
-          reply_markup: afterCheckinKeyboard(),
-        }
-      );
+      const pracLines =
+        help.practices?.length
+          ? "\n\n*Практики на выбор:*\n" +
+            help.practices
+              .map(
+                (p) =>
+                  `• ${p.emoji} ${p.title} (~${p.durationMin} мин) — _${p.reason}_`
+              )
+              .join("\n")
+          : help.practiceTitle
+            ? `\n\nПрактика: ${help.practiceTitle}`
+            : "";
+      await ctx.reply(`🛟 *Поддержка*\n\n${help.text}${pracLines}`, {
+        parse_mode: "Markdown",
+        reply_markup: afterCheckinKeyboard(),
+      });
     } catch (e) {
       console.error("bot autoHelp", e);
     }
@@ -902,14 +910,22 @@ async function finishStress(
         "assistant",
         `🛟 Поддержка при высоком стрессе\n\n${help.text}`
       );
-      await ctx.reply(
-        `🛟 *Поддержка*\n\n${help.text}` +
-          (help.practiceTitle ? `\n\nПрактика: ${help.practiceTitle}` : ""),
-        {
-          parse_mode: "Markdown",
-          reply_markup: afterCheckinKeyboard(),
-        }
-      );
+      const pracLines =
+        help.practices?.length
+          ? "\n\n*Практики на выбор:*\n" +
+            help.practices
+              .map(
+                (p) =>
+                  `• ${p.emoji} ${p.title} (~${p.durationMin} мин) — _${p.reason}_`
+              )
+              .join("\n")
+          : help.practiceTitle
+            ? `\n\nПрактика: ${help.practiceTitle}`
+            : "";
+      await ctx.reply(`🛟 *Поддержка*\n\n${help.text}${pracLines}`, {
+        parse_mode: "Markdown",
+        reply_markup: afterCheckinKeyboard(),
+      });
     } catch (e) {
       console.error("bot stress autoHelp", e);
     }

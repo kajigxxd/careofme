@@ -239,6 +239,74 @@ export const PRACTICES: Practice[] = [
     outro:
       "Благодарность не отменяет боль. Она просто расширяет кадр на пару градусов.",
   },
+  {
+    id: "energy_sip",
+    title: "3 минуты на топливо",
+    emoji: "🔋",
+    kind: "body",
+    durationMin: 3,
+    focus: ["burnout", "apathy", "sadness", "emptiness", "overwhelm", "general"],
+    free: true,
+    intro:
+      "Когда сил почти нет — не «мотивация», а минимум топлива для тела. Без героизма.",
+    steps: [
+      "Выпей несколько глотков воды (или чая), медленно.",
+      "Встань, если можешь: мягко потяни руки вверх, затем вниз к полу.",
+      "3 раза: вдох носом, выдох ртом длиннее вдоха.",
+      "Спроси себя: что одно крошечное сейчас возможно? (сесть, поесть, написать «мне тяжело»).",
+      "Сделай только это одно — или осознанно ничего, 60 секунд без телефона.",
+    ],
+    outro:
+      "Истощение не лечится силой воли. Ты только что вернул(а) телу каплю внимания — этого достаточно как старт.",
+  },
+  {
+    id: "name_the_feeling",
+    title: "Назвать чувство",
+    emoji: "🗣",
+    kind: "journal",
+    durationMin: 2,
+    focus: [
+      "sadness",
+      "anger",
+      "guilt",
+      "emptiness",
+      "anxiety",
+      "self_doubt",
+      "general",
+    ],
+    free: true,
+    intro:
+      "Мозг часто смешивает «я плохой» и «мне больно». Разделяем: имя чувства без приговора.",
+    steps: [
+      "Спроси: какое чувство сейчас ближе всего? (грусть, злость, страх, стыд, пустота…)",
+      "Дополни: где в теле? (грудь, живот, горло, плечи)",
+      "Скажи или напиши: «Сейчас я чувствую … в …»",
+      "Добавь: «Мне не нужно это исправлять за 2 минуты.»",
+      "Если хочется — один мягкий запрос к себе: «Что мне сейчас нужно на 1%?»",
+    ],
+    outro:
+      "Названное чувство чуть меньше управляет из тени. Можно остановиться здесь.",
+  },
+  {
+    id: "shoulders_drop",
+    title: "Плечи вниз + выдох",
+    emoji: "⬇️",
+    kind: "body",
+    durationMin: 2,
+    focus: ["anxiety", "overwhelm", "anger", "fear", "burnout", "general"],
+    free: true,
+    intro:
+      "Стресс часто «сидит» в плечах и челюсти. 2 минуты телесного сброса — без приложений и коврика.",
+    steps: [
+      "Заметь плечи: где они сейчас? Подтяни к ушам на вдохе.",
+      "На выдохе резко (но мягко) отпусти вниз. Повтори 3 раза.",
+      "Расслабь челюсть: язык на нижнее нёбо, губы чуть разомкнуты.",
+      "5 выдохов длиннее вдоха. Считай только выдох.",
+      "Потряси кистями 10 секунд, как стряхиваешь воду.",
+    ],
+    outro:
+      "Тело получило сигнал «можно чуть отпустить». Мысли могут ещё крутиться — это нормально.",
+  },
 ];
 
 export function getPractice(id: string): Practice | undefined {
@@ -262,19 +330,161 @@ export function recommendPractice(
   stress?: number,
   freeOnly = false
 ): Practice {
+  const list = recommendPractices(1, focus, { mood, stress, freeOnly });
+  return list[0]!;
+}
+
+export type PracticePick = {
+  id: string;
+  title: string;
+  emoji: string;
+  durationMin: number;
+  kind: PracticeKind;
+  free: boolean;
+  reason: string;
+};
+
+/**
+ * Several diverse practices for low wellbeing — not only grounding.
+ */
+export function recommendPractices(
+  count: number,
+  focus: FocusArea[],
+  opts?: {
+    mood?: number;
+    energy?: number;
+    stress?: number;
+    freeOnly?: boolean;
+  }
+): Practice[] {
+  const freeOnly = !!opts?.freeOnly;
+  const mood = opts?.mood;
+  const energy = opts?.energy;
+  const stress = opts?.stress;
+
   let pool = practicesForFocus(focus, { freeOnly });
   if (!pool.length) pool = PRACTICES.filter((p) => p.free || !freeOnly);
 
-  // Heuristics
-  if (stress && stress >= 4) {
-    const breath = pool.filter((p) => p.kind === "breathing" || p.kind === "grounding");
-    if (breath.length) pool = breath;
-  } else if (mood && mood <= 2) {
-    const soft = pool.filter((p) =>
-      ["tiny_win", "body_scan_short", "gratitude_real", "box_breath"].includes(p.id)
+  // Score-based boost lists (still keep diversity across kinds)
+  const preferredIds = new Set<string>();
+  if (stress != null && stress >= 4) {
+    [
+      "box_breath",
+      "54321",
+      "shoulders_drop",
+      "body_scan_short",
+      "478_breath",
+      "worry_window",
+    ].forEach((id) => preferredIds.add(id));
+  }
+  if (mood != null && mood <= 2) {
+    [
+      "tiny_win",
+      "name_the_feeling",
+      "gratitude_real",
+      "body_scan_short",
+      "energy_sip",
+      "thought_catch",
+    ].forEach((id) => preferredIds.add(id));
+  }
+  if (energy != null && energy <= 2) {
+    ["energy_sip", "tiny_win", "body_scan_short", "box_breath", "gratitude_real"].forEach(
+      (id) => preferredIds.add(id)
     );
-    if (soft.length) pool = soft;
+  }
+  if (preferredIds.size === 0) {
+    ["box_breath", "54321", "tiny_win", "body_scan_short", "thought_catch"].forEach((id) =>
+      preferredIds.add(id)
+    );
   }
 
-  return pool[Math.floor(Math.random() * pool.length)]!;
+  const preferred = pool.filter((p) => preferredIds.has(p.id));
+  const rest = pool.filter((p) => !preferredIds.has(p.id));
+
+  // Round-robin by kind so we don't return 3 groundings
+  const picked: Practice[] = [];
+  const usedKinds = new Set<string>();
+  const usedIds = new Set<string>();
+
+  const tryPick = (list: Practice[], respectKind: boolean) => {
+    for (const p of shuffle(list)) {
+      if (usedIds.has(p.id)) continue;
+      if (respectKind && usedKinds.has(p.kind) && picked.length < count) {
+        // allow second of same kind only later
+        continue;
+      }
+      picked.push(p);
+      usedIds.add(p.id);
+      usedKinds.add(p.kind);
+      if (picked.length >= count) return;
+    }
+  };
+
+  tryPick(preferred, true);
+  if (picked.length < count) tryPick(preferred, false);
+  if (picked.length < count) tryPick(rest, true);
+  if (picked.length < count) tryPick(rest, false);
+  if (picked.length < count) {
+    const any = PRACTICES.filter((p) => (freeOnly ? p.free : true) && !usedIds.has(p.id));
+    tryPick(any, false);
+  }
+
+  // Guarantee at least one practice
+  if (!picked.length) {
+    const fallback =
+      getPractice("box_breath") ||
+      getPractice("54321") ||
+      PRACTICES.find((p) => p.free)!;
+    return [fallback];
+  }
+
+  return picked.slice(0, Math.max(1, count));
+}
+
+export function practicePickReason(
+  p: Practice,
+  scores?: { mood?: number; energy?: number; stress?: number }
+): string {
+  if (scores?.stress != null && scores.stress >= 4) {
+    if (p.kind === "breathing") return "снизить стресс через дыхание";
+    if (p.kind === "grounding") return "вернуть в «здесь и сейчас»";
+    if (p.kind === "body") return "сбросить напряжение в теле";
+  }
+  if (scores?.mood != null && scores.mood <= 2) {
+    if (p.id === "tiny_win") return "опереться на крошечный факт «сделал»";
+    if (p.id === "name_the_feeling") return "назвать чувство без самокритики";
+    if (p.kind === "journal") return "чуть разгрузить голову на бумаге";
+  }
+  if (scores?.energy != null && scores.energy <= 2) {
+    if (p.id === "energy_sip") return "дать телу минимум топлива";
+    if (p.kind === "body") return "мягко оживить тело без нагрузки";
+  }
+  if (p.kind === "cbt") return "отойти от липкой мысли";
+  if (p.kind === "breathing") return "успокоть нервную систему";
+  if (p.kind === "grounding") return "заземлиться";
+  return "короткая опора на сейчас";
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
+}
+
+export function toPracticePicks(
+  practices: Practice[],
+  scores?: { mood?: number; energy?: number; stress?: number }
+): PracticePick[] {
+  return practices.map((p) => ({
+    id: p.id,
+    title: p.title,
+    emoji: p.emoji,
+    durationMin: p.durationMin,
+    kind: p.kind,
+    free: p.free,
+    reason: practicePickReason(p, scores),
+  }));
 }

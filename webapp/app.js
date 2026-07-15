@@ -413,6 +413,16 @@ function onAppClick(e) {
     return;
   }
 
+  // Multi practice picks on support screen
+  const pp = target.closest("[data-open-practice]");
+  if (pp) {
+    e.preventDefault();
+    e.stopPropagation();
+    const pid = pp.getAttribute("data-open-practice");
+    if (pid) openPractice(pid, false);
+    return;
+  }
+
   const trial = target.closest("[data-trial-plan]");
   if (trial && !trial.disabled) {
     e.preventDefault();
@@ -883,7 +893,46 @@ function showSupportResult({
   }
 
   const practiceBtn = $("#supportPracticeBtn");
-  if (practiceBtn) {
+  const picks = Array.isArray(autoHelp?.practices) ? autoHelp.practices : [];
+  const wrap = $("#supportPracticesWrap");
+  const list = $("#supportPractices");
+
+  if (list && wrap) {
+    if (picks.length) {
+      wrap.classList.remove("hidden");
+      list.innerHTML = picks
+        .map((p) => {
+          const title = `${p.emoji || "🧘"} ${p.title || "Практика"}`;
+          const meta = p.durationMin ? `~${p.durationMin} мин` : "";
+          const reason = (p.reason || "").replace(/</g, "&lt;");
+          return `<button type="button" class="practice-pick" data-open-practice="${p.id}">
+            <span class="pp-title">${title}</span>
+            <span class="pp-meta">${meta}</span>
+            ${reason ? `<span class="pp-reason">${reason}</span>` : ""}
+          </button>`;
+        })
+        .join("");
+      // Primary button opens first pick
+      if (practiceBtn) {
+        practiceBtn.style.display = "none";
+      }
+    } else {
+      wrap.classList.add("hidden");
+      list.innerHTML = "";
+      if (practiceBtn) {
+        if (autoHelp?.practiceId || needsSupport || crisis) {
+          practiceBtn.style.display = "";
+          practiceBtn.dataset.practiceId =
+            autoHelp?.practiceId || "box_breath";
+          practiceBtn.textContent = autoHelp?.practiceTitle
+            ? `🧘 ${autoHelp.practiceTitle}`
+            : "🧘 Практика";
+        } else {
+          practiceBtn.style.display = "none";
+        }
+      }
+    }
+  } else if (practiceBtn) {
     if (autoHelp?.practiceId) {
       practiceBtn.style.display = "";
       practiceBtn.dataset.practiceId = autoHelp.practiceId;
@@ -892,8 +941,8 @@ function showSupportResult({
         : "🧘 Практика";
     } else {
       practiceBtn.style.display = needsSupport || crisis ? "" : "none";
-      practiceBtn.dataset.practiceId = autoHelp?.practiceId || "54321";
-      practiceBtn.textContent = "🧘 Заземление";
+      practiceBtn.dataset.practiceId = autoHelp?.practiceId || "box_breath";
+      practiceBtn.textContent = "🧘 Практика";
     }
   }
 
