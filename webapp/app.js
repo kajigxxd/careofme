@@ -161,11 +161,19 @@ function openFeelingsEditor() {
   }
 }
 
-function onAppClick(e) {
-  const target = e.target;
-  if (!(target instanceof Element)) return;
+/** Resolve click target — macOS WebView often fires on Text nodes inside buttons */
+function eventEl(e) {
+  const t = e.target;
+  if (t instanceof Element) return t;
+  if (t && t.parentElement) return t.parentElement;
+  return null;
+}
 
-  // Feelings editor (text node clicks → closest on parent)
+function onAppClick(e) {
+  const target = eventEl(e);
+  if (!target) return;
+
+  // Feelings editor
   if (target.closest("[data-action='edit-feelings'], #editFeelingsBtn")) {
     e.preventDefault();
     e.stopPropagation();
@@ -205,17 +213,8 @@ function onAppClick(e) {
 }
 
 function bindNav() {
-  // capture=true: more reliable on Telegram Desktop (macOS)
-  document.addEventListener("click", onAppClick, true);
-  document.addEventListener("pointerup", (e) => {
-    // Extra path for macOS trackpad / Desktop WebView
-    if (!isMacDesktop() && !isDesktopClient()) return;
-    const t = e.target;
-    if (!(t instanceof Element)) return;
-    if (t.closest("[data-action='edit-feelings'], #editFeelingsBtn, [data-pay-plan]")) {
-      // let click handler run; this helps some builds fire actions
-    }
-  }, true);
+  // bubble phase is enough once Text-node clicks are resolved
+  document.addEventListener("click", onAppClick, false);
 }
 
 async function loadMe() {

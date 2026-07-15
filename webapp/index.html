@@ -13,7 +13,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715c" />
+    <link rel="stylesheet" href="./styles.css?v=20260715d" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -123,8 +123,14 @@
           </div>
 
           <button class="linkish" data-go="stats" type="button">Полная статистика →</button>
-          <button class="linkish" type="button" id="editFeelingsBtn" data-action="edit-feelings">
-            Изменить, что я чувствую →
+          <button
+            class="btn ghost block"
+            type="button"
+            id="editFeelingsBtn"
+            data-action="edit-feelings"
+            style="margin-top:8px"
+          >
+            Изменить, что я чувствую
           </button>
           <p class="fineprint" id="disclaimer"></p>
         </section>
@@ -324,6 +330,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715c" type="module"></script>
+    <script src="./app.js?v=20260715d" type="module"></script>
   </body>
 </html>
