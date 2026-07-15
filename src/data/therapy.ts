@@ -25,7 +25,7 @@ export const THERAPY_MODULES: TherapyModule[] = [
   {
     id: "therapy_thought_distortion",
     title: "Ловушки мышления",
-    emoji: "",
+    emoji: "💭",
     durationMin: 8,
     focus: ["anxiety", "self_doubt", "guilt", "burnout", "general"],
     free: true,
@@ -48,7 +48,7 @@ export const THERAPY_MODULES: TherapyModule[] = [
   {
     id: "therapy_self_compassion",
     title: "Сострадание к себе",
-    emoji: "",
+    emoji: "🤍",
     durationMin: 7,
     focus: ["guilt", "self_doubt", "sadness", "burnout", "emptiness", "general"],
     free: true,
@@ -70,7 +70,7 @@ export const THERAPY_MODULES: TherapyModule[] = [
   {
     id: "therapy_anxiety_wave",
     title: "Волна тревоги",
-    emoji: "",
+    emoji: "🌊",
     durationMin: 8,
     focus: ["anxiety", "fear", "overwhelm", "insomnia", "general"],
     free: true,
@@ -92,7 +92,7 @@ export const THERAPY_MODULES: TherapyModule[] = [
   {
     id: "therapy_values_step",
     title: "Шаг к ценностям",
-    emoji: "",
+    emoji: "🧭",
     durationMin: 9,
     focus: ["emptiness", "apathy", "burnout", "sadness", "general"],
     free: false,
@@ -113,7 +113,7 @@ export const THERAPY_MODULES: TherapyModule[] = [
   {
     id: "therapy_boundaries",
     title: "Границы без вины",
-    emoji: "",
+    emoji: "🪴",
     durationMin: 8,
     focus: ["burnout", "relationships", "guilt", "anger", "overwhelm"],
     free: false,
@@ -135,7 +135,7 @@ export const THERAPY_MODULES: TherapyModule[] = [
   {
     id: "therapy_grief_soft",
     title: "Мягко с тяжестью",
-    emoji: "",
+    emoji: "🌧",
     durationMin: 8,
     focus: ["sadness", "loneliness", "emptiness", "guilt", "general"],
     free: true,

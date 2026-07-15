@@ -519,7 +519,7 @@ async function loadMe() {
     hideAuthBanner();
     const name = state.me.user.firstName || "друг";
     $("#greeting").textContent = `Привет, ${name}`;
-    $("#streakChip").textContent = `${state.me.streak}`;
+    $("#streakChip").textContent = `💫 ${state.me.streak}`;
     $("#sMood").textContent = fmt(state.me.stats.avgMood);
     $("#sEnergy").textContent = fmt(state.me.stats.avgEnergy);
     $("#sStress").textContent = fmt(state.me.stats.avgStress);
@@ -555,20 +555,20 @@ async function loadMe() {
 
 /* —— Onboarding —— */
 const DEFAULT_FOCUS_LABELS = {
-  burnout: "Выгорание",
-  anxiety: "Тревога",
-  insomnia: "Бессонница / сон",
-  loneliness: "Одиночество",
-  sadness: "Грусть / тяжесть",
-  overwhelm: "Перегруз / хаос",
-  anger: "Раздражение / злость",
-  emptiness: "Пустота / онемение",
-  guilt: "Вина / стыд",
-  fear: "Страх / неуверенность в будущем",
-  relationships: "Напряжение в отношениях",
-  self_doubt: "Неуверенность в себе",
-  apathy: "Апатия / нет сил",
-  general: "Просто тяжело / не знаю",
+  burnout: "🍂 Выгорание",
+  anxiety: "🌊 Тревога",
+  insomnia: "🌙 Бессонница / сон",
+  loneliness: "🤍 Одиночество",
+  sadness: "🌧 Грусть / тяжесть",
+  overwhelm: "🍃 Перегруз / хаос",
+  anger: "🪨 Раздражение / злость",
+  emptiness: "☁️ Пустота / онемение",
+  guilt: "🪞 Вина / стыд",
+  fear: "🕯 Страх / неуверенность в будущем",
+  relationships: "💬 Напряжение в отношениях",
+  self_doubt: "🌫️ Неуверенность в себе",
+  apathy: "🌑 Апатия / нет сил",
+  general: "🌿 Просто тяжело / не знаю",
 };
 
 function renderOnboarding() {
@@ -662,7 +662,7 @@ async function finishFeelingsSelection({ analyze = true, goHome = false } = {}) 
         if (helpEl) {
           helpEl.classList.remove("crisis-help");
           helpEl.textContent =
-            "Что может стоять за этим\n\n" + help.text;
+            "🪞 Что может стоять за этим\n\n" + help.text;
         }
       }
     } else {
@@ -795,11 +795,12 @@ async function loadPractices() {
       b.type = "button";
       b.className = "practice-item";
       b.innerHTML = `
+        <div class="emoji">${p.emoji || "🌿"}</div>
         <div class="meta">
           <div class="t">${p.title}</div>
           <div class="s">${p.durationMin} мин · ${p.kind}</div>
         </div>
-        <div class="lock">${p.locked ? "закрыто" : "›"}</div>`;
+        <div class="lock">${p.locked ? "🔒" : "›"}</div>`;
       b.onclick = () => openPractice(p.id, p.locked);
       list.appendChild(b);
     }
@@ -826,7 +827,7 @@ async function openPractice(id, locked) {
   try {
     const { practice } = await api(`/practices/${id}`);
     state.currentPracticeId = practice.id;
-    $("#pTitle").textContent = `${practice.title}`;
+    $("#pTitle").textContent = `${practice.emoji || ""} ${practice.title}`.trim();
     $("#pMeta").textContent = `~${practice.durationMin} мин`;
     $("#pIntro").textContent = practice.intro;
     $("#pOutro").textContent = practice.outro;
@@ -844,7 +845,7 @@ function celebrateAchievements(list) {
   if (!list?.length) return;
   const first = list[0];
   const more = list.length > 1 ? ` (+${list.length - 1})` : "";
-  const msg = `${first.title || "Ачивка"}${more}`;
+  const msg = `${first.emoji || "✨"} ${first.title || "Ачивка"}${more}`;
   toast(msg);
   let el = document.getElementById("achToast");
   if (!el) {
@@ -853,7 +854,7 @@ function celebrateAchievements(list) {
     el.className = "ach-toast hidden";
     document.body.appendChild(el);
   }
-  el.textContent = `Ачивка: ${first.title || ""}${more}`;
+  el.textContent = `Ачивка: ${first.emoji || "✨"} ${first.title || ""}${more}`;
   el.classList.remove("hidden");
   clearTimeout(celebrateAchievements._t);
   celebrateAchievements._t = setTimeout(() => el.classList.add("hidden"), 3200);
@@ -871,7 +872,7 @@ async function onPracticeDone() {
       method: "POST",
       body: {},
     });
-    toast("Засчитано");
+    toast("Засчитано 🌿");
     if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
     if (res.newAchievements?.length) celebrateAchievements(res.newAchievements);
     go("practices");
@@ -895,11 +896,12 @@ async function loadTherapy() {
       b.type = "button";
       b.className = "practice-item";
       b.innerHTML = `
+        <div class="emoji">${t.emoji || "🤍"}</div>
         <div class="meta">
           <div class="t">${t.title}</div>
           <div class="s">${t.durationMin} мин · самопомощь</div>
         </div>
-        <div class="lock">${t.locked ? "закрыто" : "›"}</div>`;
+        <div class="lock">${t.locked ? "🔒" : "›"}</div>`;
       b.onclick = () => openTherapy(t.id, t.locked);
       list.appendChild(b);
     }
@@ -917,7 +919,7 @@ async function openTherapy(id, locked) {
   try {
     const { module: t } = await api(`/therapy/${id}`);
     state.currentTherapyId = t.id;
-    if ($("#tTitle")) if ($("#tTitle")) $("#tTitle").textContent = `${t.title}`;
+    if ($("#tTitle")) if ($("#tTitle")) $("#tTitle").textContent = `${t.emoji || ""} ${t.title}`.trim();
     if ($("#tMeta")) $("#tMeta").textContent = `~${t.durationMin} мин`;
     if ($("#tDisclaimer")) $("#tDisclaimer").textContent = t.disclaimer || "";
     if ($("#tIntro")) $("#tIntro").textContent = t.intro || "";
@@ -982,6 +984,7 @@ async function loadAchievements() {
             })
           : "";
         return `<div class="ach-item ${unlocked ? "": "locked"}">
+          <div class="ach-emoji">${a.emoji || "✨"}</div>
           <div>
             <div class="ach-title">${a.title || ""}</div>
             <div class="ach-desc">${a.description || ""}</div>
@@ -1092,7 +1095,7 @@ function showSupportResult({
       wrap.classList.remove("hidden");
       list.innerHTML = picks
         .map((p) => {
-          const title = `${p.title || "Практика"}`;
+          const title = `${p.emoji || "🌿"} ${p.title || "Практика"}`;
           const meta = p.durationMin ? `~${p.durationMin} мин` : "";
           const reason = (p.reason || "").replace(/</g, "&lt;");
           return `<button type="button" class="practice-pick" data-open-practice="${p.id}">
@@ -1974,10 +1977,10 @@ function updatePayBanner() {
       state.me.plans?.[state.me.plan]?.title || state.me.plan || "Plus";
     const trialNote = state.me.isTrial ? "· пробный период" : "";
     banner.innerHTML = `
-      <div class="pay-banner-title">${state.me.isTrial ? "Пробный период" : "Подписка активна"}</div>
+      <div class="pay-banner-title">${state.me.isTrial ? "🎁 Пробный период" : "✅ Подписка активна"}</div>
       <p class="muted">Тариф «${title}»${trialNote}${until ? ` до ${until}` : ""}</p>
       <button class="linkish" data-go="premium" type="button">Управление →</button>`;
-    if (chip) chip.textContent = state.me.isTrial ? "Plus · пробный" : "Plus";
+    if (chip) chip.textContent = state.me.isTrial ? "✨ Plus · пробный" : "✨ Plus";
     return;
   }
 
@@ -2001,7 +2004,7 @@ function updatePayBanner() {
 
   // Restore pay UI for free users
   banner.innerHTML = `
-    <div class="pay-banner-title"> Подписка · 3 дня бесплатно</div>
+    <div class="pay-banner-title"> ✨ Подписка · 3 дня бесплатно</div>
     <p class="muted" id="payBannerText">
       Попробуй «Забота» или «Плюс» без оплаты, затем USDT через Crypto Bot.
     </p>
@@ -2015,7 +2018,7 @@ function updatePayBanner() {
       </button>
     </div>
     <button class="linkish" data-go="premium" type="button">Все тарифы и детали →</button>`;
-  if (chip) chip.textContent = "Plus";
+  if (chip) chip.textContent = "✨ Plus";
   bindPayButtons(banner);
 }
 

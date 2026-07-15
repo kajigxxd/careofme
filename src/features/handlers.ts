@@ -137,7 +137,7 @@ export function registerHandlers(bot: Bot) {
 
     if (!user.onboardingDone) {
       await ctx.reply(
-        `Привет${user.firstName ? `, ${user.firstName}` : ""}\n\n` +
+        `Привет${user.firstName ? `, ${user.firstName}` : ""} 🌿\n\n` +
           `Я *Бережно* — твой карманный спутник для эмоциональной безопасности.\n\n` +
           `За 2–3 минуты в день:\n` +
           `• чек-ин настроения\n` +
@@ -158,7 +158,7 @@ export function registerHandlers(bot: Bot) {
 
     const appKb = openAppKeyboard();
     await ctx.reply(
-      `Снова здесь — и это уже забота о себе.\n\n` +
+      `Снова здесь — и это уже забота о себе 🌿\n\n` +
         `Серия: *${pluralDays(user.streak)}* чек-инов подряд.\n` +
         (webappUrl()
           ? `Открой *приложение* кнопкой ниже или меню → «Открыть Бережно».\n`
@@ -330,35 +330,35 @@ export function registerHandlers(bot: Bot) {
   });
 
   // Reply keyboard texts
-  bot.hears("Чек-ин", async (ctx) => {
+  bot.hears("🌤 Чек-ин", async (ctx) => {
     ensureUser(ctx);
     await startCheckin(ctx);
   });
-  bot.hears("Практики", async (ctx) => {
+  bot.hears("🌿 Практики", async (ctx) => {
     ensureUser(ctx);
     await openPractices(ctx);
   });
-  bot.hears("Дневник", async (ctx) => {
+  bot.hears("📝 Дневник", async (ctx) => {
     ensureUser(ctx);
     await startJournal(ctx);
   });
-  bot.hears("Стресс", async (ctx) => {
+  bot.hears("📊 Стресс", async (ctx) => {
     ensureUser(ctx);
     await startStress(ctx);
   });
-  bot.hears("AI-коуч", async (ctx) => {
+  bot.hears("💬 AI-коуч", async (ctx) => {
     ensureUser(ctx);
     await openCoach(ctx);
   });
-  bot.hears("Статистика", async (ctx) => {
+  bot.hears("📈 Статистика", async (ctx) => {
     ensureUser(ctx);
     await sendStats(ctx);
   });
-  bot.hears("Подписка", async (ctx) => {
+  bot.hears("✨ Подписка", async (ctx) => {
     ensureUser(ctx);
     await openPremium(ctx);
   });
-  bot.hears("Помощь", async (ctx) => {
+  bot.hears("ℹ️ Помощь", async (ctx) => {
     await sendHelp(ctx);
   });
 
@@ -541,7 +541,7 @@ export function registerHandlers(bot: Bot) {
             p.durationMin * 60
           );
         }
-        await ctx.answerCallbackQuery({ text: "Засчитано" });
+        await ctx.answerCallbackQuery({ text: "Засчитано 🌿" });
         await ctx.reply(
           `Красиво. Практика «${p?.title ?? id}» отмечена.\n` +
             `Такие 3–5 минут копятся тише, чем кажется.`,
@@ -910,13 +910,13 @@ async function finishCheckin(
   }
 
   await ctx.reply(
-    `Чек-ин сохранён\n\n` +
+    `✅ Чек-ин сохранён\n\n` +
       `Настроение ${p.mood}/5 ${bar(p.mood)}\n` +
       `Энергия ${p.energy}/5 ${bar(p.energy)}\n` +
       `Стресс ${p.stress}/5 ${bar(p.stress)}\n` +
       (p.sleep ? `Сон ${p.sleep}/5 ${bar(p.sleep)}\n` : "") +
       (note ? `\n«${note.slice(0, 120)}»\n` : "") +
-      `\nСерия: ${pluralDays(user.streak)}\n\n${tip}`,
+      `\n💫 Серия: ${pluralDays(user.streak)}\n\n${tip}`,
     {
       reply_markup: afterCheckinKeyboard(),
     }
@@ -1238,7 +1238,7 @@ async function openPremium(ctx: Context) {
       : "\n\nСейчас: бесплатный тариф. Можно взять 3 дня free на Заботу и/или Плюс.";
 
   await ctx.reply(
-    `Подписка careofme\n\n` +
+    `✨ Подписка careofme\n\n` +
       `Ежедневная опора: выгорание, тревога, сон — на русском.\n` +
       `Пробный 3 дня · сроки 7д / 30д / 3м / 6м · от 89 ₽\n\n` +
       lines.join("\n\n") +

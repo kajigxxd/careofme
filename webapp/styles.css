@@ -367,8 +367,8 @@ h2 {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
-  min-height: 88px;
+  gap: 3px;
+  min-height: 96px;
   transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   box-shadow: 0 4px 14px var(--calm-shadow);
 }
@@ -382,7 +382,10 @@ h2 {
 }
 
 .a-emoji {
-  display: none;
+  display: block;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  margin-bottom: 1px;
 }
 
 .a-title {
@@ -590,7 +593,12 @@ h2 {
 }
 
 .practice-item .emoji {
-  display: none;
+  display: block;
+  font-size: 1.35rem;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 1.6rem;
+  text-align: center;
 }
 
 .practice-item .meta {
@@ -827,21 +835,27 @@ h2 {
   background: transparent;
   color: var(--hint);
   font-family: inherit;
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   font-weight: 500;
   letter-spacing: 0.01em;
-  line-height: 1.15;
+  line-height: 1.1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0;
+  gap: 1px;
   cursor: pointer;
   padding: 4px 2px;
   border-radius: 10px;
 }
 
-.tab span {
+.tab .tab-ico {
+  font-size: 0.95rem;
+  line-height: 1;
+  font-weight: 400;
+}
+
+.tab span:not(.tab-ico) {
   font-size: inherit;
   font-weight: inherit;
   line-height: inherit;
@@ -1225,7 +1239,10 @@ h2 {
 }
 
 .ach-item .ach-emoji {
-  display: none;
+  display: block;
+  font-size: 1.45rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .ach-item .ach-title {
