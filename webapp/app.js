@@ -328,6 +328,7 @@ function openFeelingsEditor() {
     const areas = state.me?.focusAreas;
     state.focusDraft =
       Array.isArray(areas) && areas.length ? [...areas] : ["general"];
+    state.feelingsMode = "edit"; // analyze after save
     go("onboarding");
     // macOS WebView sometimes needs a second paint
     requestAnimationFrame(() => {
@@ -473,6 +474,7 @@ async function loadMe() {
 
     if (!state.me.onboardingDone) {
       state.focusDraft = [...(state.me.focusAreas || ["general"])];
+      state.feelingsMode = "onboarding";
       go("onboarding");
     }
     updatePayBanner();
@@ -516,6 +518,29 @@ const DEFAULT_FOCUS_LABELS = {
 function renderOnboarding() {
   const labels = state.me?.focusLabels || DEFAULT_FOCUS_LABELS;
   if (!state.focusDraft?.length) state.focusDraft = ["general"];
+  const editing = state.feelingsMode === "edit" || state.me?.onboardingDone;
+  const title = $("#onboardingTitle");
+  const hint = $("#onboardingHint");
+  const doneBtn = $("#onboardingDone");
+  const skipBtn = $("#onboardingSkipHome");
+  if (title) {
+    title.textContent = editing
+      ? "Что ты чувствуешь сейчас?"
+      : "Что ты чувствуешь сейчас?";
+  }
+  if (hint) {
+    hint.textContent = editing
+      ? "Отметь, что ближе. Нажми «Разобрать и помочь» — сохраним выбор и разберём ситуацию, не просто вернём на главную."
+      : "Можно несколько — это не диагноз. После выбора разберём, что за этим может стоять, и что поможет.";
+  }
+  if (doneBtn) {
+    doneBtn.textContent = "Разобрать и помочь";
+    doneBtn.disabled = false;
+  }
+  if (skipBtn) {
+    skipBtn.style.display = editing ? "" : "none";
+  }
+
   const box = $("#focusChips");
   if (!box) {
     console.warn("focusChips missing");
@@ -536,6 +561,67 @@ function renderOnboarding() {
       renderOnboarding();
     };
     box.appendChild(b);
+  }
+}
+
+async function finishFeelingsSelection({ analyze = true, goHome = false } = {}) {
+  if (state._feelingsSaving) return;
+  if (!state.focusDraft?.length) state.focusDraft = ["general"];
+  state._feelingsSaving = true;
+  const doneBtn = $("#onboardingDone");
+  if (doneBtn) {
+    doneBtn.disabled = true;
+    doneBtn.textContent = analyze ? "Разбираю…" : "Сохраняю…";
+  }
+  try {
+    const res = await api("/onboarding", {
+      method: "POST",
+      body: {
+        focusAreas: state.focusDraft,
+        analyze: !!analyze,
+      },
+    });
+    toast(analyze ? "Смотрю, что за этим стоит…" : "Сохранено");
+    await loadMe();
+
+    if (analyze && (res.reflection || res.autoHelp || res.crisis)) {
+      const help = res.autoHelp || {
+        text: res.reflection?.text,
+        practiceId: res.reflection?.practiceId,
+        practiceTitle: res.reflection?.practiceTitle,
+      };
+      showSupportResult({
+        title: res.crisis ? "Важно · поддержка" : "Разбор чувств",
+        meta: res.reflection?.labels?.length
+          ? `Сейчас: ${res.reflection.labels.join(" · ")}`
+          : "На основе твоего выбора",
+        insight: null,
+        autoHelp: help,
+        needsSupport: true,
+        crisis: !!res.crisis,
+      });
+      // Friendlier header for non-crisis feelings reflection
+      if (!res.crisis && help?.text) {
+        const helpEl = $("#supportHelp");
+        if (helpEl) {
+          helpEl.classList.remove("crisis-help");
+          helpEl.textContent =
+            "🪞 Что может стоять за этим\n\n" + help.text;
+        }
+      }
+    } else {
+      go("home");
+    }
+    state.feelingsMode = null;
+  } catch (e) {
+    console.error("finishFeelings", e);
+    toast(apiErrorMessage(e) || "Не удалось сохранить");
+  } finally {
+    state._feelingsSaving = false;
+    if (doneBtn) {
+      doneBtn.disabled = false;
+      doneBtn.textContent = "Разобрать и помочь";
+    }
   }
 }
 
@@ -1706,19 +1792,13 @@ function wireUi() {
     if (el) el.addEventListener(ev, fn);
   };
 
-  on("onboardingDone", "click", async () => {
-    try {
-      if (!state.focusDraft?.length) state.focusDraft = ["general"];
-      await api("/onboarding", {
-        method: "POST",
-        body: { focusAreas: state.focusDraft },
-      });
-      toast("Сохранено");
-      await loadMe();
-      go("home");
-    } catch {
-      toast("Не удалось сохранить");
-    }
+  on("onboardingDone", "click", async (ev) => {
+    ev.preventDefault();
+    await finishFeelingsSelection({ analyze: true });
+  });
+  on("onboardingSkipHome", "click", async (ev) => {
+    ev.preventDefault();
+    await finishFeelingsSelection({ analyze: false, goHome: true });
   });
 
   on("checkinBack", "click", () => {

@@ -13,7 +13,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715k" />
+    <link rel="stylesheet" href="./styles.css?v=20260715l" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -153,15 +153,20 @@
           <p class="fineprint" id="disclaimer"></p>
         </section>
 
-        <!-- ONBOARDING -->
+        <!-- ONBOARDING / EDIT FEELINGS -->
         <section class="screen" data-screen="onboarding">
           <div class="card">
-            <h1>Что ты чувствуешь сейчас?</h1>
-            <p class="muted">
-              Можно несколько — это не диагноз, а ориентир. Так практики и коуч будут ближе к тебе.
+            <h1 id="onboardingTitle">Что ты чувствуешь сейчас?</h1>
+            <p class="muted" id="onboardingHint">
+              Можно несколько — это не диагноз. После выбора разберём, что за этим может стоять, и что поможет.
             </p>
             <div class="chips wrap focus-grid" id="focusChips"></div>
-            <button class="btn primary block" id="onboardingDone">Продолжить</button>
+            <button class="btn primary block" id="onboardingDone" type="button">
+              Разобрать и помочь
+            </button>
+            <button class="btn ghost block" id="onboardingSkipHome" type="button" style="margin-top:8px;display:none">
+              Только сохранить и на главную
+            </button>
           </div>
         </section>
 
@@ -432,6 +437,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715k" type="module"></script>
+    <script src="./app.js?v=20260715l" type="module"></script>
   </body>
 </html>

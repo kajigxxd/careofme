@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { UserProfile } from "../db/store";
+import type { FocusArea, UserProfile } from "../db/store";
 import {
   buildCoachSystemPrompt,
   FOCUS_LABELS,
@@ -310,6 +310,139 @@ export async function checkinInsight(
   } catch {
     return null;
   }
+}
+
+export type FeelingsReflectResult = {
+  text: string;
+  practiceId?: string;
+  practiceTitle?: string;
+  usedFallback: boolean;
+  labels: string[];
+};
+
+/**
+ * After user picks/changes “what I feel” — help make sense of it, not just save chips.
+ */
+export async function reflectSelectedFeelings(
+  user: UserProfile,
+  selected: FocusArea[],
+  previous?: FocusArea[]
+): Promise<FeelingsReflectResult> {
+  const areas = (selected.length ? selected : user.focusAreas).slice(0, 8);
+  const labels = areas.map((a) => FOCUS_LABELS[a] || a);
+  const prevLabels = (previous || [])
+    .filter((a) => !areas.includes(a))
+    .map((a) => FOCUS_LABELS[a] || a);
+  const added = areas
+    .filter((a) => previous && !previous.includes(a))
+    .map((a) => FOCUS_LABELS[a] || a);
+
+  const last = user.checkins[0];
+  const practice = recommendPractice(
+    areas,
+    last?.mood,
+    last?.stress,
+    !user.plan || user.plan === "free"
+  );
+
+  const client = getClient();
+  if (!client) {
+    return fallbackFeelingsReflect(user, labels, added, prevLabels, practice);
+  }
+
+  try {
+    const resp = await client.chat.completions.create({
+      model: modelName(),
+      temperature: 0.88,
+      max_tokens: 800,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Ты — careofme. Человек только что выбрал, что он чувствует (чипы/фокус). " +
+            "НЕ просто «спасибо, сохранено». Помоги разобраться в ситуации.\n" +
+            "На русском, живо, 160–280 слов:\n" +
+            "1) Свяжи выбранные чувства между собой (что может стоять за комбинацией)\n" +
+            "2) Если есть прошлый фокус — мягко отметь, что изменилось\n" +
+            "3) Опирайся на последние чек-ины/дневник, если есть\n" +
+            "4) Дай 2–3 мягких пути, как быть с этим сегодня (на выбор, без «ты должен»)\n" +
+            "5) Можно предложить практику, если уместна\n" +
+            "Без диагнозов, без стыда, без шаблона 1)2)3) как протокол. " +
+            "Если звучит кризис — 8-800-2000-122 / 112.",
+        },
+        {
+          role: "user",
+          content:
+            `${buildUserContext(user)}\n\n` +
+            `Сейчас выбрано: ${labels.join(", ") || "не указано"}\n` +
+            (added.length ? `Новое по сравнению с прошлым: ${added.join(", ")}\n` : "") +
+            (prevLabels.length
+              ? `Убрал(а) из фокуса: ${prevLabels.join(", ")}\n`
+              : "") +
+            `Практика-кандидат: ${practice.emoji} ${practice.title} (~${practice.durationMin} мин)`,
+        },
+      ],
+    });
+    const text =
+      resp.choices[0]?.message?.content?.trim() ||
+      fallbackFeelingsReflect(user, labels, added, prevLabels, practice).text;
+    return {
+      text: text.replace(/\*\*/g, "*"),
+      practiceId: practice.id,
+      practiceTitle: `${practice.emoji} ${practice.title}`,
+      usedFallback: false,
+      labels,
+    };
+  } catch (e) {
+    console.error("reflectSelectedFeelings", e);
+    return fallbackFeelingsReflect(user, labels, added, prevLabels, practice);
+  }
+}
+
+function fallbackFeelingsReflect(
+  user: UserProfile,
+  labels: string[],
+  added: string[],
+  removed: string[],
+  practice: { id: string; emoji: string; title: string; durationMin: number }
+): FeelingsReflectResult {
+  const name = user.firstName ? `${user.firstName}, ` : "";
+  const last = user.checkins[0];
+  const list = labels.join(", ") || "общее состояние";
+
+  const comboHint =
+    labels.length >= 2
+      ? `Когда рядом ${labels.slice(0, 3).join(" и ")}, часто это не «одна эмоция», а связка: одно чувство питает другое.`
+      : `Ты отметил(а): ${list}. Это уже ориентир — можно не гадать «что со мной не так».`;
+
+  const changeHint = added.length
+    ? ` Сейчас сильнее всплыло: ${added.join(", ")}.`
+    : removed.length
+      ? ` Что-то отпустило из фокуса (${removed.slice(0, 2).join(", ")}) — и это тоже информация.`
+      : "";
+
+  const checkinHint = last
+    ? ` В последнем чек-ине настроение ${last.mood}/5, энергия ${last.energy}/5, стресс ${last.stress}/5` +
+      (last.note ? `; заметка: «${last.note.slice(0, 70)}»` : "") +
+      "."
+    : "";
+
+  const text =
+    `${name}ты отметил(а), что сейчас близко: ${list}.${changeHint}${checkinHint}\n\n` +
+    `${comboHint}\n\n` +
+    `Как с этим быть мягко (выбери одно, без обязательства):\n` +
+    `• Назови чувство вслух или в заметке одной фразой — отделить «я = плохо» от «мне сейчас тяжело».\n` +
+    `• Телу: 5 длинных выдохов или короткая практика «${practice.emoji} ${practice.title}» (~${practice.durationMin} мин).\n` +
+    `• Если сил мало — уменьшить день на 10% и не доказывать себе выносливость.\n\n` +
+    `Это не диагноз. Можно вернуться к коучу и разобрать одну нить подробнее.`;
+
+  return {
+    text,
+    practiceId: practice.id,
+    practiceTitle: `${practice.emoji} ${practice.title}`,
+    usedFallback: true,
+    labels,
+  };
 }
 
 function fallbackCoach(

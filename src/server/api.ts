@@ -29,6 +29,7 @@ import {
   autoSupportOnBadResult,
   scanUserForCrisis,
   crisisAutoHelp,
+  reflectSelectedFeelings,
   type CrisisHelp,
 } from "../ai/client";
 import type { UserProfile } from "../db/store";
@@ -326,16 +327,66 @@ export function createApiRouter(): Router {
     });
   });
 
-  router.post("/onboarding", (req, res) => {
+  router.post("/onboarding", async (req, res) => {
     const profile = (req as any).profile;
     const areas = (req.body?.focusAreas || []) as FocusArea[];
     const allowed = new Set<FocusArea>(ALL_FOCUS_AREAS);
     const focusAreas = areas.filter((a) => allowed.has(a));
+    const previous = [...(profile.focusAreas || [])];
+    const analyze = req.body?.analyze !== false; // default: analyze selection
+
     const updated = store.updateUser(profile.userId, {
       focusAreas: focusAreas.length ? focusAreas : ["general"],
       onboardingDone: true,
     });
-    res.json({ ok: true, focusAreas: updated.focusAreas });
+
+    const payload: Record<string, unknown> = {
+      ok: true,
+      focusAreas: updated.focusAreas,
+    };
+
+    // Crisis if somehow encoded in free text (not typical for chips) — skip
+    if (analyze) {
+      try {
+        const reflection = await reflectSelectedFeelings(
+          updated,
+          updated.focusAreas,
+          previous
+        );
+        payload.reflection = reflection;
+        payload.autoHelp = {
+          text: reflection.text,
+          practiceId: reflection.practiceId,
+          practiceTitle: reflection.practiceTitle,
+          usedFallback: reflection.usedFallback,
+          trigger: "feelings",
+        };
+        payload.needsSupport = true;
+        store.pushCoachMessage(
+          updated.userId,
+          "assistant",
+          `🪞 Разбор чувств\n\n${reflection.text}`
+        );
+
+        // Also scan reflection request context? chips only — optional crisis from history
+        const crisisScan = scanUserForCrisis(updated, []);
+        if (crisisScan.detected) {
+          const help = await crisisAutoHelp(updated, crisisScan);
+          payload.crisis = true;
+          payload.crisisLevel = crisisScan.level;
+          payload.autoHelp = help;
+          store.pushCoachMessage(
+            updated.userId,
+            "assistant",
+            `⚠️ Кризисная поддержка\n\n${help.text}`
+          );
+        }
+      } catch (e) {
+        console.error("onboarding reflect", e);
+      }
+    }
+
+    res.json(payload);
   });
 
   router.post("/checkin", async (req, res) => {
