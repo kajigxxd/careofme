@@ -35,12 +35,29 @@ function getToken() {
   return process.env.BOT_TOKEN || "";
 }
 
-function authMiddleware(req: Request, res: Response, next: NextFunction) {
-  const initData =
+function extractInitData(req: Request): string {
+  const header =
     (req.header("x-telegram-init-data") as string) ||
-    (req.body?.initData as string) ||
-    (req.query.initData as string) ||
+    (req.header("X-Telegram-Init-Data") as string) ||
     "";
+  if (header) return header;
+
+  const auth = req.header("authorization") || "";
+  if (auth.toLowerCase().startsWith("tma ")) {
+    return auth.slice(4).trim();
+  }
+
+  if (typeof req.body?.initData === "string" && req.body.initData) {
+    return req.body.initData;
+  }
+  if (typeof req.query?.initData === "string" && req.query.initData) {
+    return req.query.initData;
+  }
+  return "";
+}
+
+function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  const initData = extractInitData(req);
 
   // Browser preview without Telegram
   if (!initData && process.env.WEBAPP_DEV_SKIP_AUTH === "1") {
@@ -54,9 +71,19 @@ function authMiddleware(req: Request, res: Response, next: NextFunction) {
     return next();
   }
 
+  if (!initData) {
+    return res.status(401).json({
+      error: "missing_init_data",
+      message: "Открой приложение из Telegram-бота",
+    });
+  }
+
   const validated = validateInitData(initData, getToken());
   if (!validated) {
-    return res.status(401).json({ error: "invalid_init_data" });
+    return res.status(401).json({
+      error: "invalid_init_data",
+      message: "Сессия устарела — закрой и открой приложение из бота",
+    });
   }
 
   const profile = store.getOrCreateUser({
@@ -250,8 +277,16 @@ export function createApiRouter(): Router {
         ? req.body.prompt.slice(0, 300)
         : "Свободная запись";
     if (!text.trim()) return res.status(400).json({ error: "text_required" });
-    const entry = store.addJournal(profile.userId, prompt, text);
-    res.json({ ok: true, entry });
+    try {
+      const entry = store.addJournal(profile.userId, prompt, text);
+      console.log(
+        `journal: saved user=${profile.userId} id=${entry.id} len=${text.length}`
+      );
+      res.json({ ok: true, entry });
+    } catch (err) {
+      console.error("journal: save failed", err);
+      res.status(500).json({ error: "save_failed", message: "Не удалось сохранить" });
+    }
   });
 
   router.patch("/journal/:id", (req, res) => {

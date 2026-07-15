@@ -52,7 +52,12 @@ const CHECKIN_STEPS = [
   { key: "note", title: "Заметка", hint: "Что повлияло на день? Необязательно" },
 ];
 
-function initDataHeader() {
+function getInitData() {
+  // Always read live — some mobile clients refresh after ready()
+  try {
+    const live = window.Telegram?.WebApp?.initData;
+    if (live) return live;
+  } catch (_) {}
   return tg?.initData || "";
 }
 
@@ -65,19 +70,51 @@ function apiBase() {
   return "";
 }
 
+function apiErrorMessage(err) {
+  const code = err?.data?.error || err?.message || "";
+  if (err?.status === 0 || code === "network_error") {
+    return "Нет сети. Проверь интернет и попробуй ещё раз";
+  }
+  if (
+    err?.status === 401 ||
+    code === "invalid_init_data" ||
+    code === "missing_init_data"
+  ) {
+    return err?.data?.message || "Открой приложение заново из бота @careofme_bot";
+  }
+  if (code === "text_required") return "Напиши хотя бы пару слов";
+  if (code === "save_failed") return "Не удалось сохранить на сервере";
+  return err?.data?.message || "Не удалось сохранить";
+}
+
 async function api(path, options = {}) {
+  const initData = getInitData();
+  const method = (options.method || "GET").toUpperCase();
   const headers = {
     "Content-Type": "application/json",
-    "X-Telegram-Init-Data": initDataHeader(),
+    "X-Telegram-Init-Data": initData,
+    ...(initData ? { Authorization: `tma ${initData}` } : {}),
     ...(options.headers || {}),
   };
+
+  // Mutating requests: also put initData in body — some mobile WebViews
+  // drop long custom headers under load / when keyboard is open.
+  let body = options.body;
+  if (body && typeof body === "object" && method !== "GET" && method !== "HEAD") {
+    body = { ...body, initData };
+  } else if (!body && method !== "GET" && method !== "HEAD" && initData) {
+    body = { initData };
+  }
+
   const url = `${apiBase()}/api${path}`;
+
   let res;
   try {
     res = await fetch(url, {
-      ...options,
+      method,
       headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      cache: "no-store",
     });
   } catch (networkErr) {
     const err = new Error("network_error");
@@ -187,6 +224,39 @@ function onAppClick(e) {
     e.preventDefault();
     e.stopPropagation();
     setJournalTab(jtab.getAttribute("data-journal-tab"));
+    return;
+  }
+
+  // Journal save / update — delegated (mobile WebView sometimes misses direct bind)
+  if (target.closest("#journalSave")) {
+    e.preventDefault();
+    e.stopPropagation();
+    onJournalSave();
+    return;
+  }
+  if (target.closest("#journalUpdate")) {
+    e.preventDefault();
+    e.stopPropagation();
+    onJournalUpdate();
+    return;
+  }
+  if (target.closest("#journalDelete")) {
+    e.preventDefault();
+    e.stopPropagation();
+    onJournalDelete();
+    return;
+  }
+  if (target.closest("#journalRefresh")) {
+    e.preventDefault();
+    e.stopPropagation();
+    loadJournalPrompt();
+    return;
+  }
+  if (target.closest("#journalEditBack")) {
+    e.preventDefault();
+    e.stopPropagation();
+    state.editingJournalId = null;
+    setJournalTab("list");
     return;
   }
 
@@ -538,6 +608,7 @@ state.editingJournalId = null;
 
 function openJournalScreen() {
   setJournalTab(state.journalTab || "new");
+  restoreJournalDraft();
 }
 
 function setJournalTab(tab) {
@@ -583,35 +654,54 @@ function formatJournalDate(iso) {
   }
 }
 
-async function loadJournalList() {
+function renderJournalList() {
   const list = $("#journalList");
   const empty = $("#journalEmpty");
-  if (list) list.innerHTML = `<p class="muted">Загрузка…</p>`;
-  try {
-    const data = await api("/journal");
-    state.journalEntries = data.entries || [];
-    if (!state.journalEntries.length) {
-      if (list) list.innerHTML = "";
-      if (empty) empty.style.display = "block";
-      return;
-    }
-    if (empty) empty.style.display = "none";
-    if (!list) return;
-    list.innerHTML = state.journalEntries
-      .map((e) => {
-        const preview = (e.text || "").replace(/</g, "&lt;").slice(0, 280);
-        const prompt = (e.prompt || "Запись").replace(/</g, "&lt;");
-        const edited = e.updatedAt ? " · изм." : "";
-        return `<button type="button" class="journal-item" data-journal-id="${e.id}">
+  if (!list) return;
+  const entries = state.journalEntries || [];
+  if (!entries.length) {
+    list.innerHTML = "";
+    if (empty) empty.style.display = "block";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  list.innerHTML = entries
+    .map((e) => {
+      const preview = (e.text || "").replace(/</g, "&lt;").slice(0, 280);
+      const prompt = (e.prompt || "Запись").replace(/</g, "&lt;");
+      const edited = e.updatedAt ? " · изм." : "";
+      const id = e.id || "";
+      return `<button type="button" class="journal-item" data-journal-id="${id}">
           <span class="j-date">${formatJournalDate(e.at)}${edited}</span>
           <span class="j-prompt">${prompt}</span>
           <span class="j-text">${preview}</span>
         </button>`;
-      })
-      .join("");
-  } catch {
-    if (list) list.innerHTML = `<p class="muted">Не удалось загрузить записи</p>`;
-    if (empty) empty.style.display = "none";
+    })
+    .join("");
+}
+
+async function loadJournalList() {
+  const list = $("#journalList");
+  const empty = $("#journalEmpty");
+  if (list && !(state.journalEntries || []).length) {
+    list.innerHTML = `<p class="muted">Загрузка…</p>`;
+  }
+  try {
+    const data = await api("/journal");
+    state.journalEntries = data.entries || [];
+    renderJournalList();
+  } catch (err) {
+    console.error("journal list", err);
+    // Keep optimistic / previous entries if we have them
+    if ((state.journalEntries || []).length) {
+      renderJournalList();
+      toast("Список мог быть неполным — проверь сеть");
+    } else {
+      if (list) {
+        list.innerHTML = `<p class="muted">${apiErrorMessage(err)}</p>`;
+      }
+      if (empty) empty.style.display = "none";
+    }
   }
 }
 
@@ -635,44 +725,152 @@ function openJournalEdit(id) {
   setJournalTab("edit");
 }
 
+function readJournalText(el) {
+  if (!el) return "";
+  // iOS / Telegram WebView: commit last keystroke before reading value
+  try {
+    el.blur();
+  } catch (_) {}
+  return String(el.value || "").trim();
+}
+
+function setJournalSaveBusy(busy) {
+  const btn = $("#journalSave");
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.textContent = busy ? "Сохраняю…" : "Сохранить";
+}
+
+function setJournalUpdateBusy(busy) {
+  const btn = $("#journalUpdate");
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.textContent = busy ? "Сохраняю…" : "Сохранить";
+}
+
+function journalDraftKey() {
+  const uid = state.me?.user?.id || "anon";
+  return `careofme_journal_draft_${uid}`;
+}
+
+function saveJournalDraft() {
+  try {
+    const text = $("#journalText")?.value || "";
+    if (text.trim()) {
+      localStorage.setItem(
+        journalDraftKey(),
+        JSON.stringify({ text, prompt: state.journalPrompt, at: Date.now() })
+      );
+    } else {
+      localStorage.removeItem(journalDraftKey());
+    }
+  } catch (_) {}
+}
+
+function restoreJournalDraft() {
+  try {
+    const raw = localStorage.getItem(journalDraftKey());
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (d?.text && $("#journalText") && !$("#journalText").value) {
+      $("#journalText").value = d.text;
+    }
+  } catch (_) {}
+}
+
+function clearJournalDraft() {
+  try {
+    localStorage.removeItem(journalDraftKey());
+  } catch (_) {}
+}
+
 async function onJournalSave() {
-  const text = $("#journalText")?.value?.trim() || "";
+  if (state._journalSaving) return;
+  const ta = $("#journalText");
+  const text = readJournalText(ta);
   if (!text) {
     toast("Напиши хотя бы пару слов");
     return;
   }
+  if (!getInitData()) {
+    toast("Открой приложение из бота @careofme_bot");
+    return;
+  }
+
+  state._journalSaving = true;
+  setJournalSaveBusy(true);
   try {
-    await api("/journal", {
+    const res = await api("/journal", {
       method: "POST",
-      body: { text, prompt: state.journalPrompt },
+      body: {
+        text,
+        prompt: state.journalPrompt || "Свободная запись",
+      },
     });
-    if ($("#journalText")) $("#journalText").value = "";
+    if (ta) ta.value = "";
+    clearJournalDraft();
+    // Optimistic: show entry even if list reload is slow
+    if (res?.entry) {
+      state.journalEntries = [
+        res.entry,
+        ...(state.journalEntries || []).filter((e) => e.id !== res.entry.id),
+      ];
+    }
     toast("Сохранено 📝");
+    if (tg?.HapticFeedback) {
+      try {
+        tg.HapticFeedback.notificationOccurred("success");
+      } catch (_) {}
+    }
     await loadJournalPrompt();
     setJournalTab("list");
-  } catch {
-    toast("Ошибка");
+    // Render immediately from optimistic state, then refresh from server
+    renderJournalList();
+  } catch (err) {
+    console.error("journal save", err);
+    saveJournalDraft();
+    toast(apiErrorMessage(err));
+    if (tg?.HapticFeedback) {
+      try {
+        tg.HapticFeedback.notificationOccurred("error");
+      } catch (_) {}
+    }
+  } finally {
+    state._journalSaving = false;
+    setJournalSaveBusy(false);
   }
 }
 
 async function onJournalUpdate() {
   const id = state.editingJournalId;
-  if (!id) return;
-  const text = $("#journalEditText")?.value?.trim() || "";
+  if (!id || state._journalSaving) return;
+  const ta = $("#journalEditText");
+  const text = readJournalText(ta);
   if (!text) {
     toast("Текст не может быть пустым");
     return;
   }
+  state._journalSaving = true;
+  setJournalUpdateBusy(true);
   try {
-    await api(`/journal/${encodeURIComponent(id)}`, {
+    const res = await api(`/journal/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: { text },
     });
+    if (res?.entry) {
+      state.journalEntries = (state.journalEntries || []).map((e) =>
+        e.id === id ? res.entry : e
+      );
+    }
     toast("Изменения сохранены");
     state.editingJournalId = null;
     setJournalTab("list");
-  } catch {
-    toast("Не удалось сохранить");
+  } catch (err) {
+    console.error("journal update", err);
+    toast(apiErrorMessage(err));
+  } finally {
+    state._journalSaving = false;
+    setJournalUpdateBusy(false);
   }
 }
 
@@ -682,11 +880,12 @@ async function onJournalDelete() {
   if (!confirm("Удалить эту запись?")) return;
   try {
     await api(`/journal/${encodeURIComponent(id)}`, { method: "DELETE" });
+    state.journalEntries = (state.journalEntries || []).filter((e) => e.id !== id);
     toast("Удалено");
     state.editingJournalId = null;
     setJournalTab("list");
-  } catch {
-    toast("Не удалось удалить");
+  } catch (err) {
+    toast(apiErrorMessage(err) || "Не удалось удалить");
   }
 }
 
@@ -1114,14 +1313,53 @@ function wireUi() {
   on("recommendPractice", "click", () => onRecommendPractice());
   on("practiceDone", "click", () => onPracticeDone());
   on("stressSave", "click", () => onStressSave());
-  on("journalRefresh", "click", () => loadJournalPrompt());
-  on("journalSave", "click", () => onJournalSave());
-  on("journalEditBack", "click", () => {
+  on("journalRefresh", "click", (ev) => {
+    ev.preventDefault();
+    loadJournalPrompt();
+  });
+  on("journalSave", "click", (ev) => {
+    ev.preventDefault();
+    onJournalSave();
+  });
+  on("journalEditBack", "click", (ev) => {
+    ev.preventDefault();
     state.editingJournalId = null;
     setJournalTab("list");
   });
-  on("journalUpdate", "click", () => onJournalUpdate());
-  on("journalDelete", "click", () => onJournalDelete());
+  on("journalUpdate", "click", (ev) => {
+    ev.preventDefault();
+    onJournalUpdate();
+  });
+  on("journalDelete", "click", (ev) => {
+    ev.preventDefault();
+    onJournalDelete();
+  });
+
+  // Form submit works better than bare button on mobile keyboards
+  const journalForm = $("#journalForm");
+  if (journalForm) {
+    journalForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      onJournalSave();
+    });
+  }
+  const journalEditForm = $("#journalEditForm");
+  if (journalEditForm) {
+    journalEditForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      onJournalUpdate();
+    });
+  }
+
+  // Autosave draft while typing (phone kills WebView often)
+  const journalText = $("#journalText");
+  if (journalText) {
+    let draftT;
+    journalText.addEventListener("input", () => {
+      clearTimeout(draftT);
+      draftT = setTimeout(saveJournalDraft, 400);
+    });
+  }
   on("checkPayBtn", "click", () => verifyPayment(state.lastInvoiceId, false));
   // Use real <a> click + openPayUrl — critical for macOS Desktop user-gesture rules
   on("payModalOpen", "click", (ev) => {

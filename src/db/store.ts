@@ -157,7 +157,37 @@ export class Store {
 
   private persist() {
     ensureDir(this.filePath);
-    fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), "utf-8");
+    const payload = JSON.stringify(this.data, null, 2);
+    // Atomic write — avoids truncated store.json if process restarts mid-write
+    const tmp = `${this.filePath}.${process.pid}.tmp`;
+    try {
+      fs.writeFileSync(tmp, payload, "utf-8");
+      fs.renameSync(tmp, this.filePath);
+    } catch (err) {
+      try {
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      } catch {
+        /* ignore */
+      }
+      // Fallback: direct write (some FS without rename support)
+      fs.writeFileSync(this.filePath, payload, "utf-8");
+      console.error("store.persist atomic failed, used direct write:", err);
+    }
+  }
+
+  /** Ensure every journal row has a stable id (legacy data). */
+  private ensureJournalIds(user: UserProfile): void {
+    let dirty = false;
+    for (const j of user.journal) {
+      if (!j?.id) {
+        j.id = `j_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        dirty = true;
+      }
+      if (typeof j.text !== "string") j.text = String(j.text ?? "");
+      if (typeof j.prompt !== "string") j.prompt = String(j.prompt ?? "Запись");
+      if (!j.at) j.at = new Date().toISOString();
+    }
+    if (dirty) this.persist();
   }
 
   getUser(userId: number): UserProfile | undefined {
@@ -275,12 +305,15 @@ export class Store {
   listJournal(userId: number, limit = 100): JournalEntry[] {
     const user = this.getUser(userId);
     if (!user) return [];
+    this.ensureJournalIds(user);
     return user.journal.slice(0, limit);
   }
 
   getJournalEntry(userId: number, entryId: string): JournalEntry | undefined {
     const user = this.getUser(userId);
-    return user?.journal.find((j) => j.id === entryId);
+    if (!user) return undefined;
+    this.ensureJournalIds(user);
+    return user.journal.find((j) => j.id === entryId);
   }
 
   updateJournal(

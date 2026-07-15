@@ -24,7 +24,8 @@ export interface ValidatedInitData {
 export function validateInitData(
   initData: string,
   botToken: string,
-  maxAgeSec = 86400
+  // Mini App can stay open a long time on phones — 7 days is still safe
+  maxAgeSec = 7 * 24 * 60 * 60
 ): ValidatedInitData | null {
   if (!initData || !botToken) return null;
 

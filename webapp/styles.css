@@ -908,3 +908,22 @@ h2 {
 .journal-item:active {
   transform: scale(0.99);
 }
+
+/* Larger touch targets for phone journal actions */
+.journal-actions .btn {
+  min-height: 48px;
+  font-size: 1rem;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+#journalForm,
+#journalEditForm {
+  margin: 0;
+}
+
+#journalText,
+#journalEditText {
+  font-size: 16px; /* prevents iOS zoom on focus */
+}

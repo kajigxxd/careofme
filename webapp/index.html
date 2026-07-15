@@ -13,7 +13,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260715e" />
+    <link rel="stylesheet" href="./styles.css?v=20260715f" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -217,19 +217,23 @@
           </div>
 
           <div id="journalNewPane">
-            <div class="card">
+            <form class="card" id="journalForm">
               <p class="prompt" id="journalPrompt"></p>
               <textarea
                 id="journalText"
                 class="input area"
                 rows="6"
+                name="journalText"
+                enterkeyhint="done"
+                autocomplete="off"
+                autocapitalize="sentences"
                 placeholder="Можно коротко — 2–5 предложений"
               ></textarea>
-              <div class="row-btns">
+              <div class="row-btns journal-actions">
                 <button class="btn ghost" id="journalRefresh" type="button">Другой вопрос</button>
-                <button class="btn primary" id="journalSave" type="button">Сохранить</button>
+                <button class="btn primary" id="journalSave" type="submit">Сохранить</button>
               </div>
-            </div>
+            </form>
           </div>
 
           <div id="journalListPane" class="hidden">
@@ -240,7 +244,7 @@
           </div>
 
           <div id="journalEditPane" class="hidden">
-            <div class="card">
+            <form class="card" id="journalEditForm">
               <button class="back" type="button" id="journalEditBack">← К списку</button>
               <p class="muted" id="journalEditMeta"></p>
               <p class="prompt" id="journalEditPrompt"></p>
@@ -248,13 +252,17 @@
                 id="journalEditText"
                 class="input area"
                 rows="8"
+                name="journalEditText"
+                enterkeyhint="done"
+                autocomplete="off"
+                autocapitalize="sentences"
                 placeholder="Текст записи"
               ></textarea>
-              <div class="row-btns">
+              <div class="row-btns journal-actions">
                 <button class="btn ghost" type="button" id="journalDelete">Удалить</button>
-                <button class="btn primary" type="button" id="journalUpdate">Сохранить</button>
+                <button class="btn primary" type="submit" id="journalUpdate">Сохранить</button>
               </div>
-            </div>
+            </form>
           </div>
         </section>
 
@@ -364,6 +372,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260715e" type="module"></script>
+    <script src="./app.js?v=20260715f" type="module"></script>
   </body>
 </html>
