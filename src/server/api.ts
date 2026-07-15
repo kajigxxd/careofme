@@ -24,7 +24,11 @@ import {
   invoicePayUrl,
   isCryptoPayConfigured,
 } from "../payments/cryptopay";
-import type { PaidPlan } from "../payments/plans";
+import {
+  planPriceUsdt,
+  rubPerUsdt,
+  type PaidPlan,
+} from "../payments/plans";
 import { checkPendingPayments } from "../payments/activate";
 
 function getToken() {
@@ -354,6 +358,9 @@ export function createApiRouter(): Router {
         payUrl,
         miniAppPayUrl: inv.mini_app_invoice_url,
         amountRub: PLANS[plan].priceRub,
+        amountUsdt: planPriceUsdt(plan as PaidPlan),
+        rubPerUsdt: rubPerUsdt(),
+        asset: "USDT",
         plan,
       });
     } catch (e) {
