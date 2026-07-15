@@ -31,7 +31,7 @@
   --safe-r: env(safe-area-inset-right, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
-  --tab-h: 64px;
+  --tab-h: 52px;
   --app-max: 480px;
   font-family: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
@@ -809,42 +809,49 @@ h2 {
   right: 0;
   bottom: 0;
   height: calc(var(--tab-h) + var(--safe-b));
-  padding: 6px 8px var(--safe-b);
+  padding: 4px 6px var(--safe-b);
   background: color-mix(in srgb, var(--calm-card) 82%, transparent);
   backdrop-filter: blur(18px);
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   z-index: 20;
   box-shadow: 0 -6px 24px var(--calm-shadow);
 }
 
 .tab {
   flex: 1;
-  max-width: 90px;
+  max-width: 88px;
   border: none;
   background: transparent;
   color: var(--hint);
   font-family: inherit;
-  font-size: 0.68rem;
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.15;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  gap: 0;
   cursor: pointer;
-  padding: 6px 4px;
-  border-radius: 12px;
+  padding: 4px 2px;
+  border-radius: 10px;
 }
 
-.tab span:first-child {
-  font-size: 1.15rem;
+.tab span {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  white-space: nowrap;
 }
 
 .tab.active {
   color: var(--calm-btn-deep);
   background: color-mix(in srgb, var(--calm-mist) 80%, transparent);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .toast {
@@ -1098,7 +1105,10 @@ h2 {
 @media (min-width: 520px) {
   :root {
     --app-max: 540px;
-    --tab-h: 68px;
+    --tab-h: 54px;
+  }
+  .tab {
+    font-size: 0.6rem;
   }
 }
 
@@ -1118,7 +1128,7 @@ h2 {
 /* Narrow / fold closed */
 @media (max-width: 360px) {
   :root {
-    --tab-h: 58px;
+    --tab-h: 48px;
   }
   h1 {
     font-size: 1.25rem;
@@ -1127,8 +1137,8 @@ h2 {
     font-size: 0.95rem;
   }
   .tab {
-    font-size: 0.62rem;
-    padding: 4px 2px;
+    font-size: 0.52rem;
+    padding: 3px 1px;
   }
 }
 
