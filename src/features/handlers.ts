@@ -161,9 +161,8 @@ export function registerHandlers(bot: Bot) {
       `Снова здесь — и это уже забота о себе 🌿\n\n` +
         `Серия: *${pluralDays(user.streak)}* чек-инов подряд.\n` +
         (webappUrl()
-          ? `Открой *приложение* кнопкой ниже или меню → «Открыть Бережно».\n`
-          : "") +
-        `Либо выбери действие в меню.`,
+          ? `Открой *приложение* кнопкой ниже или через кнопку меню Telegram.\n`
+          : `Напиши /start, когда захочешь вернуться.\n`),
       { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }
     );
     if (appKb) {
@@ -587,7 +586,9 @@ export function registerHandlers(bot: Bot) {
         } catch {
           /* message not editable */
         }
-        await ctx.reply("Меню:", { reply_markup: mainMenuKeyboard() });
+        await ctx.reply("Хорошо. Можно снова открыть приложение или нажать /start.", {
+          reply_markup: mainMenuKeyboard(),
+        });
         return;
       }
 
@@ -1367,15 +1368,9 @@ async function replyUsageStats(ctx: Context) {
 async function sendHelp(ctx: Context) {
   await ctx.reply(
     `*Как пользоваться*\n\n` +
-      `*Приложение* — /app или кнопка меню\n` +
-      `*Чек-ин* — настроение, энергия, стресс, сон (2–3 мин)\n` +
-      `*Практики* — дыхание, заземление, CBT, сон\n` +
-      `*Дневник* — короткий journaling с промптом\n` +
-      `*Трекер чувств* — быстрая отметка уровня и источника\n` +
-      `*AI-ментор* — разговор на русском (лимиты по тарифу)\n` +
-      `*Статистика* — неделя и серия\n` +
-      `*Подписка* — 199 / 349 ₽\n\n` +
-      `Команды: /start /app /checkin /coach /stats /help\n\n` +
+      `В меню бота — только */start*.\n` +
+      `Всё остальное — в *приложении* (кнопка меню Telegram или /app).\n\n` +
+      `Внутри приложения: чек-ин, практики, терапия, трекер чувств, дневник, AI-ментор, успехи, подписка.\n\n` +
       `${DISCLAIMER}\n\n` +
       `${CRISIS_HINT}`,
     { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }

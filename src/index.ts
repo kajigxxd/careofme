@@ -38,14 +38,9 @@ registerHandlers(bot);
 
 async function configureProfile(webappUrl?: string) {
   try {
+    // Public bot command menu: only /start (other commands still work if typed)
     await bot.api.setMyCommands([
-      { command: "start", description: "Запуск и меню" },
-      { command: "app", description: "Открыть приложение" },
-      { command: "checkin", description: "Чек-ин настроения" },
-      { command: "coach", description: "AI-ментор" },
-      { command: "stats", description: "Статистика" },
-      { command: "help", description: "Помощь" },
-      // grant/revoke hidden from public menu — still work if you type them
+      { command: "start", description: "Запуск" },
     ]);
   } catch (e) {
     console.warn("setMyCommands:", e);

@@ -1,4 +1,4 @@
-import { InlineKeyboard, Keyboard } from "grammy";
+import { InlineKeyboard } from "grammy";
 import { FOCUS_LABELS, STRESS_SOURCES } from "../data/prompts";
 import { ALL_FOCUS_AREAS, type FocusArea } from "../db/store";
 import { PRACTICES, type Practice } from "../data/practices";
@@ -8,26 +8,12 @@ export function webappUrl(): string | undefined {
   return resolveWebAppUrl();
 }
 
-export function mainMenuKeyboard() {
-  const kb = new Keyboard();
-  const url = webappUrl();
-  if (url) {
-    kb.webApp("🌿 Открыть careofme", url).row();
-  }
-  return kb
-    .text("🌤 Чек-ин")
-    .text("🌿 Практики")
-    .row()
-    .text("📝 Дневник")
-    .text("📊 Трекер чувств")
-    .row()
-    .text("💬 AI-ментор")
-    .text("📈 Статистика")
-    .row()
-    .text("✨ Подписка")
-    .text("ℹ️ Помощь")
-    .resized()
-    .persistent();
+/**
+ * Reply keyboard is intentionally empty: only /start stays in bot menu.
+ * Returning remove_keyboard clears any old persistent buttons on the client.
+ */
+export function mainMenuKeyboard(): { remove_keyboard: true } {
+  return { remove_keyboard: true };
 }
 
 export function openAppKeyboard() {
