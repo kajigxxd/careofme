@@ -15,7 +15,14 @@ import {
   rejectHugePayload,
 } from "./security";
 
-export function createHttpServer(): Express {
+/**
+ * Build Express app.
+ * Optional `mount` runs AFTER /api + static, but BEFORE the catch-all 404 —
+ * use it for Telegram/Crypto webhooks so they are not swallowed by 404.
+ */
+export function createHttpServer(
+  mount?: (app: Express) => void
+): Express {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -166,6 +173,11 @@ export function createHttpServer(): Express {
       },
     })
   );
+
+  // Dynamic routes (Telegram webhook, Crypto Pay, etc.) — must be before 404
+  if (mount) {
+    mount(app);
+  }
 
   app.use((req, res, next) => {
     if (req.method !== "GET" && req.method !== "HEAD") return next();

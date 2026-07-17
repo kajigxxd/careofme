@@ -142,34 +142,38 @@ function mountCryptoPayWebhook(
 
 async function main() {
   const port = resolvePort();
-  const app = createHttpServer();
   const webappUrl = resolveWebAppUrl();
   const useWebhook = shouldUseWebhook();
+  const webhookPath =
+    useWebhook && webappUrl
+      ? `/telegram/webhook/${webhookSecretPath()}`
+      : undefined;
 
-  if (isCryptoPayConfigured()) {
-    mountCryptoPayWebhook(app);
-  }
+  // Mount webhooks BEFORE the Express 404 catch-all (inside createHttpServer)
+  const app = createHttpServer((app) => {
+    if (isCryptoPayConfigured()) {
+      mountCryptoPayWebhook(app);
+    }
+    if (webhookPath) {
+      app.post(webhookPath, webhookCallback(bot, "express"));
+      console.log(` Telegram webhook: ${webhookPath}`);
+    }
+  });
 
-  if (useWebhook && webappUrl) {
-    const secret = webhookSecretPath();
-    const path = `/telegram/webhook/${secret}`;
-    app.post(path, webhookCallback(bot, "express"));
-    console.log(` Telegram webhook: ${path}`);
+  await listenHttp(app, port);
 
-    await listenHttp(app, port);
-
-    await bot.api.setWebhook(`${webappUrl}${path}`, {
+  if (webhookPath && webappUrl) {
+    await bot.api.setWebhook(`${webappUrl}${webhookPath}`, {
       drop_pending_updates: true,
       allowed_updates: ["message", "callback_query", "my_chat_member"],
     });
-    console.log(` setWebhook → ${webappUrl}${path}`);
+    console.log(` setWebhook → ${webappUrl}${webhookPath}`);
   } else {
     try {
       await bot.api.deleteWebhook({ drop_pending_updates: false });
     } catch (e) {
       console.warn("deleteWebhook:", e);
     }
-    await listenHttp(app, port);
   }
 
   await configureProfile(webappUrl);
