@@ -17,7 +17,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260717a" />
+    <link rel="stylesheet" href="./styles.css?v=20260717b" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -92,8 +92,8 @@
             </button>
             <button class="card action" data-go="stress">
               <span class="a-emoji">📊</span>
-              <span class="a-title">Стресс</span>
-              <span class="a-sub">быстрый трекер</span>
+              <span class="a-title">Трекер чувств</span>
+              <span class="a-sub">быстрая отметка</span>
             </button>
             <button class="card action" data-go="journal">
               <span class="a-emoji">📝</span>
@@ -102,7 +102,7 @@
             </button>
             <button class="card action" data-go="coach">
               <span class="a-emoji">💬</span>
-              <span class="a-title">AI-коуч</span>
+              <span class="a-title">AI-ментор</span>
               <span class="a-sub">на русском</span>
             </button>
             <button class="card action" data-go="achievements">
@@ -218,7 +218,7 @@
                 🌿 Практика
               </button>
               <button class="btn ghost" type="button" id="supportCoachBtn">
-                💬 К коучу
+                💬 К ментору
               </button>
             </div>
             <button class="btn ghost block" type="button" data-go="home" style="margin-top:8px">
@@ -283,7 +283,7 @@
         <!-- STRESS -->
         <section class="screen" data-screen="stress">
           <div class="card">
-            <h1>Уровень стресса</h1>
+            <h1>Трекер чувств</h1>
             <p class="muted">1 — почти нет · 5 — на пределе</p>
             <div class="score-row" id="stressScore"></div>
             <label class="label">Источник</label>
@@ -361,7 +361,7 @@
         <!-- COACH -->
         <section class="screen" data-screen="coach">
           <div class="row-between">
-            <h1>AI-коуч</h1>
+            <h1>AI-ментор</h1>
             <span class="chip" id="coachQuota">—</span>
           </div>
           <div class="quick-row">
@@ -460,7 +460,7 @@
           <span class="tab-ico">🌿</span><span>Практики</span>
         </button>
         <button class="tab" data-go="coach" type="button">
-          <span class="tab-ico">💬</span><span>Коуч</span>
+          <span class="tab-ico">💬</span><span>Ментор</span>
         </button>
         <button class="tab" data-go="premium" type="button">
           <span class="tab-ico">✨</span><span>Plus</span>
@@ -497,6 +497,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260717a" type="module"></script>
+    <script src="./app.js?v=20260717b" type="module"></script>
   </body>
 </html>

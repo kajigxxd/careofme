@@ -142,8 +142,8 @@ export function registerHandlers(bot: Bot) {
           `За 2–3 минуты в день:\n` +
           `• чек-ин настроения\n` +
           `• микро-практики (дыхание, CBT, сон)\n` +
-          `• трекер стресса\n` +
-          `• AI-коуч на русском — без токсичного позитива\n\n` +
+          `• трекер чувств\n` +
+          `• AI-ментор на русском — без токсичного позитива\n\n` +
           `${DISCLAIMER}\n\n` +
           `Что ты чувствуешь сейчас? Можно несколько вариантов — это не диагноз, а ориентир:`,
         {
@@ -167,7 +167,7 @@ export function registerHandlers(bot: Bot) {
       { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }
     );
     if (appKb) {
-      await ctx.reply("Mini App — чек-ин, практики, коуч в одном окне:", {
+      await ctx.reply("Mini App — чек-ин, практики, ментор в одном окне:", {
         reply_markup: appKb,
       });
     }
@@ -342,11 +342,11 @@ export function registerHandlers(bot: Bot) {
     ensureUser(ctx);
     await startJournal(ctx);
   });
-  bot.hears("📊 Стресс", async (ctx) => {
+  bot.hears("📊 Трекер чувств", async (ctx) => {
     ensureUser(ctx);
     await startStress(ctx);
   });
-  bot.hears("💬 AI-коуч", async (ctx) => {
+  bot.hears("💬 AI-ментор", async (ctx) => {
     ensureUser(ctx);
     await openCoach(ctx);
   });
@@ -755,13 +755,25 @@ export function registerHandlers(bot: Bot) {
     // Ignore if it's a menu button (already handled by hears)
     const menuButtons = [
       "Чек-ин",
+      "🌤 Чек-ин",
       "Практики",
+      "🌿 Практики",
       "Дневник",
+      "📝 Дневник",
       "Стресс",
+      "Трекер чувств",
+      "📊 Стресс",
+      "📊 Трекер чувств",
       "AI-коуч",
+      "AI-ментор",
+      "💬 AI-коуч",
+      "💬 AI-ментор",
       "Статистика",
+      "📈 Статистика",
       "Подписка",
+      "✨ Подписка",
       "Помощь",
+      "ℹ️ Помощь",
     ];
     if (menuButtons.includes(text)) return;
 
@@ -786,7 +798,7 @@ export function registerHandlers(bot: Bot) {
       }
       await ctx.reply(
         "Записал в дневник. Это остаётся у тебя в боте — никто «не оценивает».\n\n" +
-          "Если всплыло что-то острое — можно сразу к AI-коучу или к дыханию.",
+          "Если всплыло что-то острое — можно сразу к AI-ментору или к дыханию.",
         { reply_markup: mainMenuKeyboard() }
       );
       return;
@@ -1051,7 +1063,7 @@ async function startStress(ctx: Context) {
   const user = ensureUser(ctx);
   setFlow(user.userId, "stress_level");
   await ctx.reply(
-    `*Трекер стресса*\n\n` +
+    `*Трекер чувств*\n\n` +
       `Оцени уровень прямо сейчас:\n` +
       `_1 — почти нет · 5 — на пределе_`,
     { parse_mode: "Markdown", reply_markup: moodKeyboard("stress_lv") }
@@ -1138,7 +1150,7 @@ async function openCoach(ctx: Context) {
   const quota = store.canUseCoach(user);
   setFlow(user.userId, "coach_chat");
   await ctx.reply(
-    `*AI-коуч «Бережно»*\n\n` +
+    `*AI-ментор «Бережно»*\n\n` +
       `Тёплый разбор на русском: выгорание, тревога, сон, границы.\n` +
       `Не терапия — опора на 2–5 минут.\n\n` +
       `Сегодня: *${quota.remaining}* из ${quota.limit} сообщений.\n\n` +
@@ -1159,7 +1171,7 @@ async function handleCoachMessage(
   const quota = store.canUseCoach(user);
   if (!quota.ok && !isCrisis) {
     await ctx.reply(
-      `Лимит AI-коуча на сегодня исчерпан (${quota.limit}).\n\n` +
+      `Лимит AI-ментора на сегодня исчерпан (${quota.limit}).\n\n` +
         `Завтра обновится — или открой подписку: 20–50 сообщений/день от 199 ₽.\n` +
         `А пока доступны чек-ин, дневник и практики.\n\n` +
         `${CRISIS_HINT}`,
@@ -1309,14 +1321,14 @@ async function openMiniApp(ctx: Context) {
   if (!url || !appKb) {
     await ctx.reply(
       "Mini App пока не подключён: задай *WEBAPP_URL* (HTTPS) в `.env` и перезапусти бота.\n\n" +
-        "Пока пользуйся кнопками меню — чек-ин, практики, коуч работают в чате.",
+        "Пока пользуйся кнопками меню — чек-ин, практики, ментор работают в чате.",
       { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }
     );
     return;
   }
   await ctx.reply(
     "*Бережно* — приложение внутри Telegram\n\n" +
-      "Чек-ин, практики, дневник, стресс, AI-коуч и статистика — в удобном интерфейсе.\n" +
+      "Чек-ин, практики, дневник, трекер чувств, AI-ментор и статистика — в удобном интерфейсе.\n" +
       "Также: кнопка меню → «Открыть Бережно».",
     { parse_mode: "Markdown", reply_markup: appKb }
   );
@@ -1346,7 +1358,7 @@ async function replyUsageStats(ctx: Context) {
       `• хотя бы 1 чек-ин: ${s.withCheckin}\n` +
       `• чек-инов всего: ${s.totalCheckins}\n` +
       `• записей дневника: ${s.totalJournal}\n` +
-      `• сообщений коучу: ${s.totalCoachUserMsgs}\n\n` +
+      `• сообщений ментору: ${s.totalCoachUserMsgs}\n\n` +
       `_Считаются все, кто открывал бота или Mini App._`,
     { parse_mode: "Markdown" }
   );
@@ -1359,8 +1371,8 @@ async function sendHelp(ctx: Context) {
       `*Чек-ин* — настроение, энергия, стресс, сон (2–3 мин)\n` +
       `*Практики* — дыхание, заземление, CBT, сон\n` +
       `*Дневник* — короткий journaling с промптом\n` +
-      `*Стресс* — быстрая отметка уровня и источника\n` +
-      `*AI-коуч* — разговор на русском (лимиты по тарифу)\n` +
+      `*Трекер чувств* — быстрая отметка уровня и источника\n` +
+      `*AI-ментор* — разговор на русском (лимиты по тарифу)\n` +
       `*Статистика* — неделя и серия\n` +
       `*Подписка* — 199 / 349 ₽\n\n` +
       `Команды: /start /app /checkin /coach /stats /help\n\n` +

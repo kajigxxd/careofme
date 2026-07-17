@@ -42,7 +42,7 @@ async function configureProfile(webappUrl?: string) {
       { command: "start", description: "Запуск и меню" },
       { command: "app", description: "Открыть приложение" },
       { command: "checkin", description: "Чек-ин настроения" },
-      { command: "coach", description: "AI-коуч" },
+      { command: "coach", description: "AI-ментор" },
       { command: "stats", description: "Статистика" },
       { command: "help", description: "Помощь" },
       // grant/revoke hidden from public menu — still work if you type them
@@ -77,7 +77,7 @@ async function configureProfile(webappUrl?: string) {
     );
     await bot.api.setMyDescription(
       "careofme — тихое место, куда можно заглянуть между делами.\n\n" +
-        "Короткий чек-ин, мягкие практики, трекер стресса и спокойный AI-коуч на русском. " +
+        "Короткий чек-ин, мягкие практики, трекер чувств и спокойный AI-ментор на русском. " +
         "Без давления и громких обещаний — просто рядом, когда нужно чуть больше ясности.\n\n" +
         "Не замена терапии. Если совсем тяжело: 8-800-2000-122 или 112."
     );
@@ -179,8 +179,8 @@ async function main() {
   console.log(` careofme: @${me.username}`);
   console.log(
     isAiConfigured()
-      ? `AI-коуч: SpaceXAI (${process.env.XAI_MODEL || "grok-4.5"})`
-      : "AI-коуч: fallback (добавьте XAI_API_KEY)"
+      ? `AI-ментор: SpaceXAI (${process.env.XAI_MODEL || "grok-4.5"})`
+      : "AI-ментор: fallback (добавьте XAI_API_KEY)"
   );
   console.log(
     isCryptoPayConfigured()

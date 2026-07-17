@@ -72,7 +72,7 @@ export function createHttpServer(): Express {
       windowMs: 60_000,
       max: 30,
       key: "coach-ip",
-      message: "Слишком частые сообщения коучу.",
+      message: "Слишком частые сообщения ментору.",
     })
   );
 

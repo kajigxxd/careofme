@@ -1237,14 +1237,14 @@ async function onStressSave() {
         note: $("#stressNote")?.value?.trim() || undefined,
       },
     });
-    toast("Стресс записан");
+    toast("Запись сохранена");
     state.stressLevel = null;
     state.stressSource = null;
     if ($("#stressNote")) $("#stressNote").value = "";
     await loadMe();
     if (res.crisis || res.autoHelp || res.needsSupport) {
       showSupportResult({
-        title: res.crisis ? "Важно · поддержка" : "Стресс записан",
+        title: res.crisis ? "Важно · поддержка" : "Запись сохранена",
         meta: `Уровень ${level}/5`,
         insight: null,
         autoHelp: res.autoHelp,
@@ -1610,7 +1610,7 @@ async function sendCoach(text) {
           "Если совсем тяжело: 8-800-2000-122 или 112.",
         "bot"
       );
-      toast("Лимит коуча");
+      toast("Лимит ментора");
     } else if (e.status === 401) {
       appendBubble(apiErrorMessage(e), "bot");
       showAuthBanner(apiErrorMessage(e));
