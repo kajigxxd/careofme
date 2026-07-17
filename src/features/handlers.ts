@@ -398,7 +398,7 @@ export function registerHandlers(bot: Bot) {
           `Отлично. Фокус: ${draft.map((f) => FOCUS_LABELS[f]).join(", ")}.\n\n` +
             `Меню всегда под рукой. Начни с короткого чек-ина — 2 минуты.`
         );
-        await ctx.reply("Вот главное меню:", {
+        await ctx.reply("Готово. Можно открыть приложение или снова /start.", {
           reply_markup: mainMenuKeyboard(),
         });
         return;
@@ -820,8 +820,7 @@ export function registerHandlers(bot: Bot) {
 
     // Default: gentle nudge
     await ctx.reply(
-      "Я лучше всего работаю через меню.\n" +
-        "Или напиши /checkin · /coach · /stats · /help",
+      "Нажми /start или открой приложение кнопкой меню Telegram.",
       { reply_markup: mainMenuKeyboard() }
     );
   });
@@ -1322,7 +1321,7 @@ async function openMiniApp(ctx: Context) {
   if (!url || !appKb) {
     await ctx.reply(
       "Mini App пока не подключён: задай *WEBAPP_URL* (HTTPS) в `.env` и перезапусти бота.\n\n" +
-        "Пока пользуйся кнопками меню — чек-ин, практики, ментор работают в чате.",
+        "Нажми /start или открой приложение через кнопку меню Telegram.",
       { parse_mode: "Markdown", reply_markup: mainMenuKeyboard() }
     );
     return;
