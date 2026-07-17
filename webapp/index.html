@@ -17,7 +17,7 @@
     <meta http-equiv="Expires" content="0" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- v= busts Telegram Desktop / macOS WebView cache -->
-    <link rel="stylesheet" href="./styles.css?v=20260717b" />
+    <link rel="stylesheet" href="./styles.css?v=20260717c" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -109,6 +109,11 @@
               <span class="a-emoji">✨</span>
               <span class="a-title">Успехи</span>
               <span class="a-sub" id="homeAchCount">за практики</span>
+            </button>
+            <button class="card action" data-go="referral">
+              <span class="a-emoji">🎁</span>
+              <span class="a-title">Рефералы</span>
+              <span class="a-sub" id="homeRefBalance">15% с подписки</span>
             </button>
           </div>
 
@@ -401,6 +406,63 @@
           </div>
         </section>
 
+        <!-- REFERRAL -->
+        <section class="screen" data-screen="referral">
+          <div class="row-between">
+            <h1>🎁 Рефералы</h1>
+            <span class="chip" id="refRateChip">15%</span>
+          </div>
+          <p class="muted" style="margin-bottom:12px">
+            Приглашай друзей — получай <b>15%</b> с каждой их оплаченной подписки (USDT).
+          </p>
+          <div class="card">
+            <div class="ref-balance-row">
+              <div>
+                <div class="stat-l">Баланс</div>
+                <div class="ref-balance" id="refBalance">0.00 USDT</div>
+              </div>
+              <div class="ref-earned-wrap">
+                <div class="stat-l">Всего заработано</div>
+                <div class="ref-earned" id="refEarned">0.00 USDT</div>
+              </div>
+            </div>
+            <div class="ref-stats" id="refStatsMini">
+              <span>Приглашено: 0</span>
+              <span>Оплатили: 0</span>
+            </div>
+          </div>
+          <div class="card" style="margin-top:10px">
+            <div class="crypto-title">Твоя ссылка</div>
+            <p class="muted" style="font-size:0.85rem;margin:6px 0 10px">
+              Друг переходит по ссылке → открывает бота → при оплате подписки тебе 15%.
+            </p>
+            <div class="ref-link-box" id="refLinkBox">—</div>
+            <div class="pay-row" style="margin-top:10px">
+              <button class="btn primary block" type="button" id="refCopyBtn">
+                Скопировать ссылку
+              </button>
+            </div>
+            <button class="btn ghost block" type="button" id="refShareBtn" style="margin-top:8px">
+              Поделиться
+            </button>
+            <p class="fineprint" id="refCodeHint" style="margin-top:10px"></p>
+          </div>
+          <div class="card" style="margin-top:10px">
+            <h2 style="font-size:1rem;margin:0 0 8px">Как это работает</h2>
+            <ol class="steps" id="refHow"></ol>
+            <p class="muted" style="font-size:0.8rem;margin-top:10px">
+              Вывод USDT — напиши в поддержку бота (или админу). Начисления только с реальных оплат, не с пробного периода.
+            </p>
+          </div>
+          <div class="card" style="margin-top:10px">
+            <h2 style="font-size:1rem;margin:0 0 8px">Начисления</h2>
+            <div id="refEarnings" class="list"></div>
+            <p class="muted" id="refEarningsEmpty" style="display:none;text-align:center;padding:8px">
+              Пока пусто — отправь ссылку друзьям.
+            </p>
+          </div>
+        </section>
+
         <!-- PREMIUM -->
         <section class="screen" data-screen="premium">
           <h1>✨ Подписка</h1>
@@ -462,6 +524,9 @@
         <button class="tab" data-go="coach" type="button">
           <span class="tab-ico">💬</span><span>Ментор</span>
         </button>
+        <button class="tab" data-go="referral" type="button">
+          <span class="tab-ico">🎁</span><span>Реф</span>
+        </button>
         <button class="tab" data-go="premium" type="button">
           <span class="tab-ico">✨</span><span>Plus</span>
         </button>
@@ -497,6 +562,6 @@
     </div>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="./app.js?v=20260717b" type="module"></script>
+    <script src="./app.js?v=20260717c" type="module"></script>
   </body>
 </html>

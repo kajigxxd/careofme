@@ -116,12 +116,39 @@ function mountCryptoPayWebhook(
               const u = store.getUser(result.userId);
               await bot.api.sendMessage(
                 u?.chatId || result.userId,
-                ` Оплата получена!\n\nТариф «${
+                `Оплата получена!\n\nТариф «${
                   result.plan === "plus" ? "Плюс" : "Забота"
                 }» активен на ${result.days || 30} дн.\nОткрой /start или приложение careofme.`
               );
             } catch (e) {
               console.warn("notify user pay", e);
+            }
+            // Notify referrer about 15% commission (if credited)
+            try {
+              const payer = store.getUser(result.userId);
+              if (payer?.referredBy) {
+                const ref = store.getUser(payer.referredBy);
+                const last = ref?.referralEarnings?.[0];
+                if (
+                  ref &&
+                  last &&
+                  last.fromUserId === result.userId &&
+                  Date.now() - new Date(last.at).getTime() < 60_000
+                ) {
+                  await bot.api.sendMessage(
+                    ref.chatId || ref.userId,
+                    `🎁 Реферальное начисление\n\n` +
+                      `Друг оплатил подписку «${
+                        result.plan === "plus" ? "Плюс" : "Забота"
+                      }».\n` +
+                      `Тебе +${last.amountUsdt.toFixed(2)} USDT (15%).\n` +
+                      `Баланс: ${(ref.referralBalanceUsdt || 0).toFixed(2)} USDT\n\n` +
+                      `Подробнее — вкладка «Реф» в приложении.`
+                  );
+                }
+              }
+            } catch (e) {
+              console.warn("notify referrer", e);
             }
           }
         }

@@ -1256,6 +1256,51 @@ h2 {
   line-height: 1.4;
 }
 
+.ref-balance-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.ref-balance {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--calm-btn-deep);
+  margin-top: 2px;
+}
+
+.ref-earned {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.ref-earned-wrap {
+  text-align: right;
+}
+
+.ref-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--hint);
+}
+
+.ref-link-box {
+  word-break: break-all;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  padding: 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--calm-mist) 55%, var(--card));
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .ach-item .ach-meta {
   font-size: 0.75rem;
   color: var(--link);

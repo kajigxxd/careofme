@@ -345,6 +345,7 @@ function go(screen) {
   if (screen === "coach") renderCoachMeta();
   if (screen === "stats") loadStats();
   if (screen === "premium") renderPlans();
+  if (screen === "referral") loadReferral();
   if (screen === "onboarding") renderOnboarding();
 
   if (tg?.HapticFeedback) {
@@ -535,6 +536,14 @@ async function loadMe() {
     updateFeelingsAnalysisUi();
     // Soft refresh achievement counter on home
     loadAchievements().catch(() => {});
+    // Referral deep link from Telegram startapp / start_param
+    claimReferralFromStart().catch(() => {});
+    // Home balance hint
+    if (state.me.referral && $("#homeRefBalance")) {
+      const b = state.me.referral.balanceUsdt;
+      $("#homeRefBalance").textContent =
+        b > 0 ? `${Number(b).toFixed(2)} USDT` : "15% с подписки";
+    }
   } catch (e) {
     console.error("loadMe", e);
     if (e.status === 401) {
@@ -2232,7 +2241,149 @@ function wireUi() {
   }
 }
 
+/* —— Referral —— */
+let referralCache = null;
+
+async function claimReferralFromStart() {
+  try {
+    const sp =
+      tg?.initDataUnsafe?.start_param ||
+      new URLSearchParams(location.search).get("tgWebAppStartParam") ||
+      "";
+    if (!sp) return;
+    const res = await api("/referral/claim", {
+      method: "POST",
+      body: { startParam: sp, code: sp },
+    });
+    if (res.ok) toast(res.message || "Приглашение учтено");
+  } catch (_) {
+    /* already attached or bad code — silent */
+  }
+}
+
+async function loadReferral() {
+  const linkBox = $("#refLinkBox");
+  const list = $("#refEarnings");
+  const empty = $("#refEarningsEmpty");
+  try {
+    const data = await api("/referral");
+    referralCache = data;
+    if ($("#refRateChip")) {
+      $("#refRateChip").textContent = `${data.ratePercent || 15}%`;
+    }
+    if ($("#refBalance")) {
+      $("#refBalance").textContent = `${Number(data.balanceUsdt || 0).toFixed(2)} USDT`;
+    }
+    if ($("#refEarned")) {
+      $("#refEarned").textContent = `${Number(data.earnedUsdt || 0).toFixed(2)} USDT`;
+    }
+    if ($("#refStatsMini")) {
+      $("#refStatsMini").innerHTML = `
+        <span>Приглашено: ${data.invitedCount || 0}</span>
+        <span>Оплатили: ${data.paidCount || 0}</span>`;
+    }
+    if (linkBox) linkBox.textContent = data.link || "—";
+    if ($("#refCodeHint")) {
+      $("#refCodeHint").textContent = data.code
+        ? `Код: ${data.code}`
+        : "";
+    }
+    if ($("#refHow") && Array.isArray(data.how)) {
+      $("#refHow").innerHTML = data.how.map((s) => `<li>${s}</li>`).join("");
+    }
+    if ($("#homeRefBalance")) {
+      const b = data.balanceUsdt;
+      $("#homeRefBalance").textContent =
+        b > 0 ? `${Number(b).toFixed(2)} USDT` : "15% с подписки";
+    }
+    const earnings = data.earnings || [];
+    if (list) {
+      if (!earnings.length) {
+        list.innerHTML = "";
+        if (empty) empty.style.display = "block";
+      } else {
+        if (empty) empty.style.display = "none";
+        list.innerHTML = earnings
+          .map((e) => {
+            const when = e.at
+              ? new Date(e.at).toLocaleDateString("ru-RU", {
+                  day: "numeric",
+                  month: "short",
+                })
+              : "";
+            const plan = e.plan === "plus" ? "Плюс" : "Забота";
+            return `<div class="practice-item" style="cursor:default">
+              <div class="emoji">💸</div>
+              <div class="meta">
+                <div class="t">+${Number(e.amountUsdt).toFixed(2)} USDT</div>
+                <div class="s">${plan} · платёж ${Number(e.paymentUsdt).toFixed(2)} · ${when}</div>
+              </div>
+            </div>`;
+          })
+          .join("");
+      }
+    }
+  } catch (e) {
+    if (linkBox) linkBox.textContent = apiErrorMessage(e);
+  }
+}
+
+async function copyReferralLink() {
+  const link = referralCache?.link || $("#refLinkBox")?.textContent || "";
+  if (!link || link === "—") {
+    toast("Ссылка ещё не готова");
+    return;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(link);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = link;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    toast("Ссылка скопирована");
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+  } catch {
+    toast("Не удалось скопировать — выдели ссылку вручную");
+  }
+}
+
+async function shareReferralLink() {
+  const link = referralCache?.link || $("#refLinkBox")?.textContent || "";
+  if (!link || link === "—") {
+    toast("Ссылка ещё не готова");
+    return;
+  }
+  const text =
+    "Загляни в careofme — тихое приложение для заботы о себе. " + link;
+  try {
+    if (tg?.openTelegramLink) {
+      // share via Telegram share URL
+      const share = `https://t.me/share/url?url=${encodeURIComponent(
+        link
+      )}&text=${encodeURIComponent("Загляни в careofme — тихое место для себя 🌿")}`;
+      tg.openTelegramLink(share);
+      return;
+    }
+    if (navigator.share) {
+      await navigator.share({ title: "careofme", text, url: link });
+      return;
+    }
+  } catch (_) {}
+  await copyReferralLink();
+}
+
 wireUi();
+
+// Referral buttons
+const refCopyBtn = document.getElementById("refCopyBtn");
+if (refCopyBtn) refCopyBtn.addEventListener("click", () => copyReferralLink());
+const refShareBtn = document.getElementById("refShareBtn");
+if (refShareBtn) refShareBtn.addEventListener("click", () => shareReferralLink());
 
 // Wait a tick for Telegram to inject initData on slow phones
 function boot() {

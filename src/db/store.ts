@@ -115,10 +115,37 @@ export interface UserProfile {
     amount?: string;
     asset?: string;
   }[];
+  /** Unique invite code for this user (e.g. a3k9xm) */
+  referralCode?: string;
+  /** Who invited this user (set once) */
+  referredBy?: number;
+  referredAt?: string;
+  /** Accumulated referral commission in USDT */
+  referralBalanceUsdt?: number;
+  /** Lifetime earned commission in USDT */
+  referralEarnedUsdt?: number;
+  referralEarnings?: ReferralEarning[];
 }
+
+export interface ReferralEarning {
+  id: string;
+  fromUserId: number;
+  invoiceId: number;
+  /** Commission credited (USDT) */
+  amountUsdt: number;
+  /** Original payment amount (USDT) */
+  paymentUsdt: number;
+  plan: "care" | "plus";
+  at: string;
+}
+
+/** Share of each paid subscription that goes to the referrer */
+export const REFERRAL_COMMISSION_RATE = 0.15;
 
 interface StoreData {
   users: Record<string, UserProfile>;
+  /** referralCode (lowercase) → userId */
+  referralIndex?: Record<string, number>;
 }
 
 function defaultDataPath(): string {
@@ -159,13 +186,26 @@ export class Store {
         const raw = fs.readFileSync(this.filePath, "utf-8");
         this.data = JSON.parse(raw) as StoreData;
         if (!this.data.users) this.data.users = {};
+        if (!this.data.referralIndex) this.data.referralIndex = {};
+        this.rebuildReferralIndex();
       } else {
+        this.data = { users: {}, referralIndex: {} };
         this.persist();
       }
     } catch {
-      this.data = { users: {} };
+      this.data = { users: {}, referralIndex: {} };
       this.persist();
     }
+  }
+
+  private rebuildReferralIndex() {
+    const idx: Record<string, number> = { ...(this.data.referralIndex || {}) };
+    for (const u of Object.values(this.data.users)) {
+      if (u.referralCode) {
+        idx[u.referralCode.toLowerCase()] = u.userId;
+      }
+    }
+    this.data.referralIndex = idx;
   }
 
   private persist() {
@@ -238,8 +278,12 @@ export class Store {
         freeCoachToday: 0,
         pendingInvoices: [],
         paymentHistory: [],
+        referralBalanceUsdt: 0,
+        referralEarnedUsdt: 0,
+        referralEarnings: [],
       };
       this.data.users[key] = user;
+      this.ensureReferralCode(params.userId);
       this.persist();
     } else {
       let dirty = false;
@@ -254,6 +298,10 @@ export class Store {
       if (params.firstName && user.firstName !== params.firstName) {
         user.firstName = params.firstName;
         dirty = true;
+      }
+      if (!user.referralCode) {
+        this.ensureReferralCode(params.userId);
+        dirty = false; // ensureReferralCode already persisted
       }
       // Throttle disk writes: lastSeen at most every 5 minutes
       const prev = user.lastSeenAt ? new Date(user.lastSeenAt).getTime() : 0;
@@ -718,6 +766,12 @@ export class Store {
         if (user.paymentHistory.length > 50) {
           user.paymentHistory = user.paymentHistory.slice(0, 50);
         }
+        // 15% referral commission on newly recorded paid invoices
+        this.creditReferralCommission(userId, {
+          invoiceId: payment.invoiceId,
+          amount: payment.amount,
+          plan,
+        });
       } else {
         // already paid this invoice — just ensure plan active
       }
@@ -727,6 +781,184 @@ export class Store {
     }
     this.persist();
     return user;
+  }
+
+  /** Generate or return stable invite code for user */
+  ensureReferralCode(userId: number): string {
+    const user = this.getUser(userId);
+    if (!user) throw new Error("User not found");
+    if (user.referralCode) {
+      this.data.referralIndex = this.data.referralIndex || {};
+      this.data.referralIndex[user.referralCode.toLowerCase()] = userId;
+      return user.referralCode;
+    }
+    this.data.referralIndex = this.data.referralIndex || {};
+    let code = "";
+    for (let i = 0; i < 12; i++) {
+      const base = userId.toString(36);
+      const rnd = Math.random().toString(36).slice(2, 6);
+      code = `${base}${rnd}`.replace(/[^a-z0-9]/gi, "").slice(0, 10).toLowerCase();
+      if (!code) code = `u${userId.toString(36)}`;
+      const taken = this.data.referralIndex[code];
+      if (!taken || taken === userId) break;
+      code = `${code}${i}`;
+    }
+    user.referralCode = code;
+    this.data.referralIndex[code] = userId;
+    this.persist();
+    return code;
+  }
+
+  findUserIdByReferralCode(raw: string): number | undefined {
+    const code = this.normalizeReferralCode(raw);
+    if (!code) return undefined;
+    this.data.referralIndex = this.data.referralIndex || {};
+    const id = this.data.referralIndex[code];
+    if (id && this.getUser(id)) return id;
+    // fallback scan
+    for (const u of Object.values(this.data.users)) {
+      if (u.referralCode?.toLowerCase() === code) {
+        this.data.referralIndex[code] = u.userId;
+        return u.userId;
+      }
+    }
+    return undefined;
+  }
+
+  /** Parse start payload / startapp: ref_CODE or just CODE */
+  normalizeReferralCode(raw: string | undefined | null): string | null {
+    if (!raw) return null;
+    let s = String(raw).trim();
+    if (!s) return null;
+    // /start ref_xxx  or deep link leftovers
+    s = s.replace(/^\/start(@\w+)?\s*/i, "").trim();
+    s = s.replace(/^ref[_-]?/i, "");
+    s = s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (s.length < 3 || s.length > 24) return null;
+    return s;
+  }
+
+  /**
+   * Attach invitee to referrer once. Ignores self-ref and already-attached.
+   */
+  attachReferrer(
+    inviteeId: number,
+    rawCode: string
+  ): {
+    ok: boolean;
+    reason?: string;
+    referrerId?: number;
+  } {
+    const code = this.normalizeReferralCode(rawCode);
+    if (!code) return { ok: false, reason: "bad_code" };
+    const invitee = this.getUser(inviteeId);
+    if (!invitee) return { ok: false, reason: "no_user" };
+    if (invitee.referredBy) {
+      return {
+        ok: false,
+        reason: "already",
+        referrerId: invitee.referredBy,
+      };
+    }
+    const referrerId = this.findUserIdByReferralCode(code);
+    if (!referrerId) return { ok: false, reason: "not_found" };
+    if (referrerId === inviteeId) return { ok: false, reason: "self" };
+    // Ensure referrer has code set
+    this.ensureReferralCode(referrerId);
+    invitee.referredBy = referrerId;
+    invitee.referredAt = new Date().toISOString();
+    this.persist();
+    return { ok: true, referrerId };
+  }
+
+  /**
+   * Credit 15% of paid subscription to the payer's referrer (idempotent by invoiceId).
+   */
+  creditReferralCommission(
+    payerId: number,
+    payment: {
+      invoiceId: number;
+      amount?: string;
+      plan: "care" | "plus";
+    }
+  ): ReferralEarning | null {
+    const payer = this.getUser(payerId);
+    if (!payer?.referredBy) return null;
+    const referrer = this.getUser(payer.referredBy);
+    if (!referrer) return null;
+    if (referrer.userId === payerId) return null;
+
+    referrer.referralEarnings = referrer.referralEarnings || [];
+    if (referrer.referralEarnings.some((e) => e.invoiceId === payment.invoiceId)) {
+      return null; // already credited
+    }
+
+    let paymentUsdt = Number(payment.amount);
+    if (!Number.isFinite(paymentUsdt) || paymentUsdt <= 0) {
+      // fallback: no amount on invoice — skip zero commission
+      return null;
+    }
+    // round commission to 2 decimals
+    const amountUsdt =
+      Math.round(paymentUsdt * REFERRAL_COMMISSION_RATE * 100 + 1e-9) / 100;
+    if (amountUsdt < 0.01) return null;
+
+    const earning: ReferralEarning = {
+      id: `ref_${payment.invoiceId}_${payerId}`,
+      fromUserId: payerId,
+      invoiceId: payment.invoiceId,
+      amountUsdt,
+      paymentUsdt:
+        Math.round(paymentUsdt * 100 + 1e-9) / 100,
+      plan: payment.plan,
+      at: new Date().toISOString(),
+    };
+    referrer.referralEarnings.unshift(earning);
+    if (referrer.referralEarnings.length > 100) {
+      referrer.referralEarnings = referrer.referralEarnings.slice(0, 100);
+    }
+    referrer.referralBalanceUsdt =
+      Math.round(
+        ((referrer.referralBalanceUsdt || 0) + amountUsdt) * 100 + 1e-9
+      ) / 100;
+    referrer.referralEarnedUsdt =
+      Math.round(
+        ((referrer.referralEarnedUsdt || 0) + amountUsdt) * 100 + 1e-9
+      ) / 100;
+    this.persist();
+    return earning;
+  }
+
+  referralStats(userId: number) {
+    const user = this.getUser(userId);
+    if (!user) {
+      return {
+        code: "",
+        invitedCount: 0,
+        paidCount: 0,
+        balanceUsdt: 0,
+        earnedUsdt: 0,
+        earnings: [] as ReferralEarning[],
+        rate: REFERRAL_COMMISSION_RATE,
+      };
+    }
+    const code = this.ensureReferralCode(userId);
+    const invited = Object.values(this.data.users).filter(
+      (u) => u.referredBy === userId
+    );
+    const paidCount = invited.filter(
+      (u) => (u.paymentHistory || []).length > 0
+    ).length;
+    return {
+      code,
+      invitedCount: invited.length,
+      paidCount,
+      balanceUsdt: user.referralBalanceUsdt || 0,
+      earnedUsdt: user.referralEarnedUsdt || 0,
+      earnings: (user.referralEarnings || []).slice(0, 30),
+      rate: REFERRAL_COMMISSION_RATE,
+      referredBy: user.referredBy,
+    };
   }
 
   trackInvoice(

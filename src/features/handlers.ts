@@ -135,6 +135,21 @@ export function registerHandlers(bot: Bot) {
     const user = ensureUser(ctx);
     resetSession(user.userId);
 
+    // Deep link: /start ref_CODE  or  /start CODE
+    const startPayload = (ctx.message?.text || "").split(/\s+/)[1];
+    if (startPayload) {
+      const att = store.attachReferrer(user.userId, startPayload);
+      if (att.ok) {
+        try {
+          await ctx.reply(
+            "🌿 Ты пришёл(ла) по приглашению — это учтено. Добро пожаловать!"
+          );
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
     if (!user.onboardingDone) {
       await ctx.reply(
         `Привет${user.firstName ? `, ${user.firstName}` : ""} 🌿\n\n` +

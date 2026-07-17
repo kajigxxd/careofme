@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import {
   store,
   ALL_FOCUS_AREAS,
+  REFERRAL_COMMISSION_RATE,
   type FocusArea,
   type MoodScore,
 } from "../db/store";
@@ -361,6 +362,87 @@ export function createApiRouter(): Router {
       stressSources: STRESS_SOURCES,
       aiConfigured: isAiConfigured(),
       cryptoPayConfigured: isCryptoPayConfigured(),
+      referral: (() => {
+        const r = store.referralStats(profile.userId);
+        const bot = process.env.BOT_USERNAME || "careofme_bot";
+        return {
+          code: r.code,
+          rate: r.rate,
+          ratePercent: Math.round(r.rate * 100),
+          link: `https://t.me/${bot}?start=ref_${r.code}`,
+          invitedCount: r.invitedCount,
+          paidCount: r.paidCount,
+          balanceUsdt: r.balanceUsdt,
+          earnedUsdt: r.earnedUsdt,
+        };
+      })(),
+    });
+  });
+
+  /** Referral program stats + invite link */
+  router.get("/referral", (req, res) => {
+    const profile = (req as any).profile;
+    const r = store.referralStats(profile.userId);
+    const bot = process.env.BOT_USERNAME || "careofme_bot";
+    const link = `https://t.me/${bot}?start=ref_${r.code}`;
+    res.json({
+      code: r.code,
+      link,
+      rate: r.rate,
+      ratePercent: Math.round(REFERRAL_COMMISSION_RATE * 100),
+      invitedCount: r.invitedCount,
+      paidCount: r.paidCount,
+      balanceUsdt: r.balanceUsdt,
+      earnedUsdt: r.earnedUsdt,
+      referredBy: r.referredBy || null,
+      earnings: r.earnings.map((e) => ({
+        id: e.id,
+        amountUsdt: e.amountUsdt,
+        paymentUsdt: e.paymentUsdt,
+        plan: e.plan,
+        at: e.at,
+      })),
+      how: [
+        "Поделись своей ссылкой с другом",
+        "Друг открывает бота по ссылке и пользуется careofme",
+        `Когда друг оплачивает подписку — тебе начисляется ${Math.round(
+          REFERRAL_COMMISSION_RATE * 100
+        )}% от суммы платежа (USDT)`,
+        "Баланс копится здесь. Вывод USDT — напиши в поддержку бота",
+      ],
+    });
+  });
+
+  /** Attach referral code (from start_param or manual). Once only. */
+  router.post("/referral/claim", (req, res) => {
+    const profile = (req as any).profile;
+    const raw =
+      (typeof req.body?.code === "string" && req.body.code) ||
+      (typeof req.body?.startParam === "string" && req.body.startParam) ||
+      "";
+    if (!raw.trim()) {
+      return res.status(400).json({ error: "code_required" });
+    }
+    const result = store.attachReferrer(profile.userId, raw);
+    if (!result.ok) {
+      const messages: Record<string, string> = {
+        bad_code: "Некорректный код",
+        not_found: "Код не найден",
+        self: "Нельзя пригласить самого себя",
+        already: "Реферер уже закреплён",
+        no_user: "Пользователь не найден",
+      };
+      return res.status(result.reason === "already" ? 200 : 400).json({
+        ok: false,
+        reason: result.reason,
+        message: messages[result.reason || ""] || "Не удалось",
+        referrerId: result.referrerId,
+      });
+    }
+    res.json({
+      ok: true,
+      referrerId: result.referrerId,
+      message: "Приглашение учтено — спасибо!",
     });
   });
 
