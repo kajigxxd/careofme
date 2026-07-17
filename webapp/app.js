@@ -845,7 +845,7 @@ function celebrateAchievements(list) {
   if (!list?.length) return;
   const first = list[0];
   const more = list.length > 1 ? ` (+${list.length - 1})` : "";
-  const msg = `${first.emoji || "✨"} ${first.title || "Ачивка"}${more}`;
+  const msg = `${first.emoji || "✨"} ${first.title || "Успех"}${more}`;
   toast(msg);
   let el = document.getElementById("achToast");
   if (!el) {
@@ -854,7 +854,7 @@ function celebrateAchievements(list) {
     el.className = "ach-toast hidden";
     document.body.appendChild(el);
   }
-  el.textContent = `Ачивка: ${first.emoji || "✨"} ${first.title || ""}${more}`;
+  el.textContent = `Успех: ${first.emoji || "✨"} ${first.title || ""}${more}`;
   el.classList.remove("hidden");
   clearTimeout(celebrateAchievements._t);
   celebrateAchievements._t = setTimeout(() => el.classList.add("hidden"), 3200);
